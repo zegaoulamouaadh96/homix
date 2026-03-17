@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="تواصل معنا واطلب عرض تجريبي لنظام HomiX الأمني الذكي">
+  <title>تواصل معنا — HomiX</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar" id="navbar">
+    <div class="container">
+      <a href="index.html" class="navbar-logo">
+        <div class="logo-icon"><img src="images/logo.svg" alt="HomiX Logo"></div>
+        Homi<span class="highlight">X</span>
+      </a>
+      <div class="navbar-links" id="navLinks">
+        <a href="index.html">الرئيسية</a>
+        <a href="index.html#features-preview">المزايا</a>
+        <a href="index.html#how">كيف يعمل</a>
+        <a href="contact.html" class="active">تواصل معنا</a>
+        <a href="login.html">لوحة الإدارة</a>
+      </div>
+      <a href="contact.html" class="navbar-cta">اطلب Demo</a>
+      <button class="menu-toggle" id="menuToggle" aria-label="القائمة">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="container">
+      <div class="section-badge">📋 تواصل معنا</div>
+      <h1>اطلب عرض Demo</h1>
+      <p>املأ النموذج وسنتواصل معك في أقرب وقت لتقديم عرض تجريبي مجاني</p>
+    </div>
+  </div>
+
+  <!-- Contact Section -->
+  <section class="section">
+    <div class="container">
+      <div class="contact-grid">
+        
+        <!-- Form -->
+        <div class="contact-form animate-on-scroll" id="contactFormContainer">
+          <form id="contactForm" onsubmit="handleFormSubmit(event)">
+            <div class="form-group">
+              <label>الاسم الكامل *</label>
+              <input type="text" name="name" placeholder="أدخل اسمك الكامل" required>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>وسيلة التواصل *</label>
+                <select name="contactMethod" required>
+                  <option value="">اختر وسيلة التواصل</option>
+                  <option value="whatsapp">واتساب</option>
+                  <option value="email">بريد إلكتروني</option>
+                  <option value="phone">هاتف</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>رقم / بريد التواصل *</label>
+                <input type="text" name="contact" placeholder="رقم الواتساب أو البريد الإلكتروني" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>نوع المنزل *</label>
+              <select name="homeType" required>
+                <option value="">اختر نوع المنزل</option>
+                <option value="apartment">شقة</option>
+                <option value="house">منزل عادي</option>
+                <option value="villa">فيلا</option>
+                <option value="commercial">مبنى تجاري</option>
+                <option value="other">أخرى</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>عدد الأبواب</label>
+                <input type="number" name="doors" placeholder="مثال: 3" min="0">
+              </div>
+              <div class="form-group">
+                <label>عدد النوافذ</label>
+                <input type="number" name="windows" placeholder="مثال: 6" min="0">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>عدد الكاميرات المطلوبة</label>
+              <input type="number" name="cameras" placeholder="مثال: 4" min="0">
+            </div>
+
+            <div class="form-group">
+              <label>ملاحظات إضافية</label>
+              <textarea name="notes" placeholder="أي تفاصيل أو متطلبات خاصة..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">
+              📋 اطلب Demo مجاني
+            </button>
+          </form>
+
+          <!-- Success Message -->
+          <div class="form-success" id="formSuccess">
+            <div class="success-icon">✅</div>
+            <h3>تم إرسال طلبك بنجاح!</h3>
+            <p>شكرًا لاهتمامك بنظام HomiX. سنتواصل معك في أقرب وقت ممكن.</p>
+            <button class="btn btn-outline mt-16" onclick="resetForm()">إرسال طلب آخر</button>
+          </div>
+        </div>
+
+        <!-- Contact Info -->
+        <div class="contact-info animate-on-scroll">
+          <div class="contact-info-card">
+            <div class="contact-info-icon">💬</div>
+            <div>
+              <h4>مساعد HomiX الذكي</h4>
+              <p>تحدث مع مساعدنا الذكي للإجابة الفورية على أسئلتك</p>
+            </div>
+          </div>
+
+          <div class="contact-info-card">
+            <div class="contact-info-icon">📱</div>
+            <div>
+              <h4>واتساب</h4>
+              <p>تواصل معنا عبر واتساب للحصول على رد سريع</p>
+            </div>
+          </div>
+
+          <div class="contact-info-card">
+            <div class="contact-info-icon">📧</div>
+            <div>
+              <h4>البريد الإلكتروني</h4>
+              <p>contact@homix.com</p>
+            </div>
+          </div>
+
+          <div class="contact-info-card">
+            <div class="contact-info-icon">⏰</div>
+            <div>
+              <h4>ساعات العمل</h4>
+              <p>السبت - الخميس: 9 صباحًا - 6 مساءً</p>
+            </div>
+          </div>
+
+          <div class="contact-info-card" style="cursor: pointer;" onclick="toggleChat()">
+            <div class="contact-info-icon">🤖</div>
+            <div>
+              <h4>هل لديك سؤال سريع؟</h4>
+              <p style="color: var(--neon-blue);">تحدث مع المساعد الذكي الآن ←</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="footer-logo">Homi<span class="highlight">X</span></div>
+          <p>نظام أمني ذكي متكامل لحماية منزلك بأحدث تقنيات الذكاء الاصطناعي.</p>
+        </div>
+        <div class="footer-col">
+          <h4>روابط سريعة</h4>
+          <a href="index.html">الرئيسية</a>
+          <a href="index.html#features-preview">المزايا</a>
+          <a href="index.html#how">كيف يعمل</a>
+          <a href="contact.html">تواصل معنا</a>
+        </div>
+        <div class="footer-col">
+          <h4>المزيد</h4>
+          <a href="login.html">دخول الإدارة</a>
+          <a href="admin/index.html">لوحة الإدارة</a>
+        </div>
+        <div class="footer-col">
+          <h4>تواصل</h4>
+          <a href="contact.html">اطلب Demo</a>
+          <a href="#" onclick="toggleChat(); return false;">تحدث مع المساعد</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2026 HomiX — جميع الحقوق محفوظة</span>
+        <span>صنع بـ 💙 بواسطة زقاولة معاذ</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Chat Widget -->
+  <button class="chat-widget-btn" id="chatBtn" onclick="toggleChat()">💬</button>
+  <div class="chat-widget" id="chatWidget">
+    <div class="chat-widget-header">
+      <div class="chat-title">
+        <div class="chat-avatar">🤖</div>
+        <div><h4>مساعد HomiX</h4><div class="status">● متصل</div></div>
+      </div>
+      <button class="chat-widget-close" onclick="toggleChat()">✕</button>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-message bot">مرحبًا! 👋 أنا مساعد HomiX. كيف يمكنني مساعدتك؟</div>
+    </div>
+    <div class="chat-quick-actions" id="chatQuickActions">
+      <button class="quick-action-btn" onclick="sendQuickMessage('ما هي مزايا HomiX؟')">المزايا</button>
+      <button class="quick-action-btn" onclick="sendQuickMessage('ما هي الباقات المتوفرة؟')">الباقات</button>
+      <button class="quick-action-btn" onclick="sendQuickMessage('أريد طلب Demo')">طلب Demo</button>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" id="chatInput" placeholder="اكتب رسالتك..." onkeypress="if(event.key==='Enter')sendMessage()">
+      <button onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+  <script src="js/chat.js"></script>
+</body>
+</html>

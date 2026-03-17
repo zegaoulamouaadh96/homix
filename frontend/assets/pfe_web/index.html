@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HomiX - حماية وتحكم شامل لمنزلك الذكي. نظام أمني ذكي متكامل بتقنيات الذكاء الاصطناعي.">
+  <title>HomiX — حماية وتحكم شامل لمنزلك الذكي</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/svg+xml" href="images/logo.svg">
+</head>
+<body>
+
+  <!-- ===== Navbar ===== -->
+  <nav class="navbar" id="navbar">
+    <div class="container">
+      <a href="index.html" class="navbar-logo">
+        <div class="logo-icon"><img src="images/logo.svg" alt="HomiX Logo"></div>
+        Homi<span class="highlight">X</span>
+      </a>
+      <div class="navbar-links" id="navLinks">
+        <a href="index.html" class="active">الرئيسية</a>
+        <a href="#features-preview">المزايا</a>
+        <a href="#how">كيف يعمل</a>
+        <a href="contact.html">تواصل معنا</a>
+        <a href="login.html">لوحة الإدارة</a>
+      </div>
+      <a href="contact.html" class="navbar-cta">اطلب Demo</a>
+      <button class="menu-toggle" id="menuToggle" aria-label="القائمة">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===== Hero Section ===== -->
+  <section class="hero" id="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div class="hero-content">
+          <div class="hero-badge">
+            <span class="dot"></span>
+            نظام أمني ذكي متكامل
+          </div>
+          <h1>
+            حماية وتحكم شامل
+            <br>
+            لمنزلك <span class="blue">الذكي</span>
+          </h1>
+          <p>
+            HomiX يوفر لك نظام حماية متكامل يجمع بين الذكاء الاصطناعي والحساسات المتطورة للتحكم الكامل في منزلك عن بُعد — كشف التهديدات فورًا وتنبيهات ذكية على مدار الساعة.
+          </p>
+          <div class="hero-buttons">
+            <a href="contact.html" class="btn btn-primary">
+              <span class="btn-icon">📋</span>
+              اطلب Demo
+            </a>
+            <a href="#features-preview" class="btn btn-outline">
+              <span class="btn-icon">✨</span>
+              شاهد المزايا
+            </a>
+          </div>
+        </div>
+        <div class="hero-visual">
+          <div class="hero-video-container">
+            <div class="hero-video-placeholder" onclick="openVideoModal('عرض تقديمي — نظام HomiX', 'intro')">
+              <div class="play-icon">▶</div>
+              <p>شاهد العرض التقديمي</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Why HomiX ===== -->
+  <section class="section" id="why">
+    <div class="container">
+      <div class="section-header animate-on-scroll">
+        <div class="section-badge">💡 لماذا HomiX</div>
+        <h2 class="section-title">لماذا تختار HomiX؟</h2>
+        <p class="section-desc">ثلاث ركائز أساسية تجعل نظامنا الاختيار الأمثل لحماية منزلك</p>
+      </div>
+      <div class="why-grid">
+        <div class="why-card animate-on-scroll">
+          <div class="why-icon">🛡️</div>
+          <h3>أمان متقدم</h3>
+          <p>حماية شاملة بكاميرات ذكية وحساسات متطورة تكشف أي تهديد فورًا وترسل تنبيهات مباشرة</p>
+        </div>
+        <div class="why-card animate-on-scroll">
+          <div class="why-icon">📱</div>
+          <h3>تحكم كامل</h3>
+          <p>تحكم في كل شيء من هاتفك — فتح الأبواب، مراقبة الكاميرات، إدارة الحساسات أينما كنت</p>
+        </div>
+        <div class="why-card animate-on-scroll">
+          <div class="why-icon">🤖</div>
+          <h3>ذكاء اصطناعي</h3>
+          <p>خوارزميات ذكية تتعرف على الوجوه وتحلل الحركة وتفعل بروتوكولات الحماية تلقائيًا</p>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row animate-on-scroll">
+        <div class="stat-item">
+          <div class="stat-number">24/7</div>
+          <div class="stat-label">مراقبة مستمرة</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number">&lt;3s</div>
+          <div class="stat-label">تنبيهات فورية</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number">100%</div>
+          <div class="stat-label">تحكم عن بعد</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number">∞</div>
+          <div class="stat-label">سجل أحداث</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Features Preview ===== -->
+  <section class="section" id="features-preview" style="background: var(--bg-secondary);">
+    <div class="container">
+      <div class="section-header animate-on-scroll">
+        <div class="section-badge">⚡ المزايا</div>
+        <h2 class="section-title">مزايا نظام HomiX</h2>
+        <p class="section-desc">تقنيات متطورة تعمل معًا لتوفير أعلى مستويات الحماية والتحكم الذكي</p>
+      </div>
+      <div class="features-grid">
+        <!-- Feature 1 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">🚪</div>
+          <h3>فتح الباب عن بعد</h3>
+          <p>تحكم كامل في أبواب منزلك من أي مكان عبر التطبيق بأمان تام وتشفير متقدم</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('فتح الباب عن بعد', 'remote-door')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+        <!-- Feature 2 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">🔑</div>
+          <h3>كود دخول الضيوف</h3>
+          <p>أنشئ أكواد دخول مؤقتة للضيوف تنتهي صلاحيتها تلقائيًا بعد الاستخدام</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('كود دخول الضيوف — OTP', 'guest-code')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+        <!-- Feature 3 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">📷</div>
+          <h3>كاميرا ذكاء اصطناعي</h3>
+          <p>تعرف على الوجوه وتمييز "مصرّح / غير مصرّح" فوريًا مع تنبيه لحظي</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('كاميرا الذكاء الاصطناعي', 'ai-camera')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+        <!-- Feature 4 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">🌍</div>
+          <h3>مستشعر زلازل ذكي</h3>
+          <p>كشف الزلازل بالذكاء الاصطناعي وتفعيل بروتوكول الطوارئ تلقائيًا</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('مستشعر الزلازل الذكي', 'earthquake')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+        <!-- Feature 5 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">🧱</div>
+          <h3>كشف العبث بالجدران</h3>
+          <p>حساسات متطورة تكشف أي محاولة حفر أو عبث بجدران المنزل وتنبّه فورًا</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('كشف العبث بالجدران', 'wall-tamper')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+        <!-- Feature 6 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">🏃</div>
+          <h3>حساسات حركة ذكية</h3>
+          <p>رصد أي حركة غير طبيعية داخل المنزل وتتبع المسار بدقة عالية</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('حساسات الحركة الذكية', 'motion')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+        <!-- Feature 7 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">📺</div>
+          <h3>بث مباشر للكاميرات</h3>
+          <p>شاهد البث الحي لجميع كاميرات منزلك مباشرة من التطبيق بجودة عالية</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('البث المباشر للكاميرات', 'live-stream')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+        <!-- Feature 8 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">🔒</div>
+          <h3>وضع الاحتواء الآمن</h3>
+          <p>عند اكتشاف دخول غير مصرح — إغلاق آمن للمناطق المحددة + إنذار + تنبيه طوارئ</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('وضع الاحتواء الآمن — Secure Containment', 'containment')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+        <!-- Feature 9 -->
+        <div class="feature-card animate-on-scroll">
+          <div class="feature-icon">🔔</div>
+          <h3>تنبيهات فورية</h3>
+          <p>إشعارات مباشرة على هاتفك عند أي حدث أمني مع سجل كامل للأحداث</p>
+          <button class="btn btn-outline btn-small" onclick="openVideoModal('نظام التنبيهات الفورية', 'alerts')">
+            🎬 شاهد فيديو 3D
+          </button>
+        </div>
+      </div>
+      <div class="text-center mt-32">
+        <a href="contact.html" class="btn btn-primary">
+          اطلب عرض تفصيلي ←
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== How It Works ===== -->
+  <section class="section" id="how">
+    <div class="container">
+      <div class="section-header animate-on-scroll">
+        <div class="section-badge">⚙️ كيف يعمل</div>
+        <h2 class="section-title">كيف يعمل نظام HomiX؟</h2>
+        <p class="section-desc">أربع خطوات بسيطة من الحساسات إلى هاتفك</p>
+      </div>
+      <div class="how-steps animate-on-scroll">
+        <div class="how-step">
+          <div class="how-step-icon">📡</div>
+          <h4>الحساسات و ESP32</h4>
+          <p>مستشعرات ذكية موزعة في المنزل</p>
+        </div>
+        <div class="how-arrow">←</div>
+        <div class="how-step">
+          <div class="how-step-icon">☁️</div>
+          <h4>السيرفر / السحابة</h4>
+          <p>معالجة البيانات والذكاء الاصطناعي</p>
+        </div>
+        <div class="how-arrow">←</div>
+        <div class="how-step">
+          <div class="how-step-icon">📱</div>
+          <h4>التطبيق / الويب</h4>
+          <p>تحكم كامل من هاتفك</p>
+        </div>
+        <div class="how-arrow">←</div>
+        <div class="how-step">
+          <div class="how-step-icon">🔔</div>
+          <h4>التنبيهات</h4>
+          <p>إشعارات فورية عند أي حدث</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== AI Chat Teaser ===== -->
+  <section class="section" style="background: var(--bg-secondary);">
+    <div class="container">
+      <div class="ai-teaser animate-on-scroll">
+        <div class="ai-teaser-content">
+          <div class="section-badge">🤖 مساعد ذكي</div>
+          <h3>مساعد HomiX الذكي</h3>
+          <p>تحدث مع مساعدنا الذكي للحصول على إجابات فورية حول النظام، التركيب، الأسعار، والدعم الفني.</p>
+          <ul class="ai-features-list">
+            <li><span class="check">✓</span> شرح المزايا والتقنيات</li>
+            <li><span class="check">✓</span> دليل التركيب خطوة بخطوة</li>
+            <li><span class="check">✓</span> دعم فني وحل المشاكل</li>
+            <li><span class="check">✓</span> طلب عرض Demo</li>
+            <li><span class="check">✓</span> معلومات الأسعار والباقات</li>
+          </ul>
+          <button class="btn btn-primary" onclick="toggleChat()">
+            💬 تحدث مع مساعد HomiX
+          </button>
+        </div>
+        <div class="ai-teaser-visual">
+          <div class="chat-preview">
+            <div class="chat-msg bot">مرحبًا! 👋 أنا مساعد HomiX الذكي. كيف يمكنني مساعدتك؟</div>
+            <div class="chat-msg user">أريد معرفة المزيد عن نظام الحماية</div>
+            <div class="chat-msg bot">بكل سرور! نظام HomiX يوفر حماية شاملة تشمل: كاميرات ذكاء اصطناعي، حساسات حركة وزلازل، تحكم في الأبواب عن بعد، ووضع احتواء آمن. هل تريد تفاصيل عن ميزة معينة؟</div>
+            <div class="chat-msg user">كيف يتم التركيب؟</div>
+            <div class="chat-msg bot">التركيب يتم خلال 3 خطوات بسيطة: 1️⃣ تركيب الحساسات والكاميرات 2️⃣ ربط الأجهزة بالسيرفر 3️⃣ إعداد التطبيق على هاتفك. يمكنك طلب Demo لمشاهدة العملية كاملة!</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CTA Section ===== -->
+  <section class="cta-section">
+    <div class="container animate-on-scroll">
+      <h2 class="section-title">جاهز لتأمين منزلك؟</h2>
+      <p>ابدأ الآن واحصل على عرض تجريبي مجاني لنظام HomiX</p>
+      <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+        <a href="contact.html" class="btn btn-primary">
+          📋 اطلب Demo مجاني
+        </a>
+        <a href="#features-preview" class="btn btn-outline">
+          ✨ استعرض المزايا
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="footer-logo">
+            Homi<span class="highlight">X</span>
+          </div>
+          <p>نظام أمني ذكي متكامل لحماية منزلك بأحدث تقنيات الذكاء الاصطناعي. تحكم، مراقبة، وحماية في منصة واحدة.</p>
+        </div>
+        <div class="footer-col">
+          <h4>روابط سريعة</h4>
+          <a href="index.html">الرئيسية</a>
+          <a href="#features-preview">المزايا</a>
+          <a href="#how">كيف يعمل</a>
+          <a href="contact.html">تواصل معنا</a>
+        </div>
+        <div class="footer-col">
+          <h4>المزيد</h4>
+          <a href="login.html">دخول الإدارة</a>
+          <a href="admin/index.html">لوحة الإدارة</a>
+        </div>
+        <div class="footer-col">
+          <h4>تواصل</h4>
+          <a href="contact.html">اطلب Demo</a>
+          <a href="#" onclick="toggleChat(); return false;">تحدث مع المساعد</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2026 HomiX — جميع الحقوق محفوظة</span>
+        <span>صنع بـ 💙 بواسطة زقاولة معاذ</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===== Video Modal ===== -->
+  <div class="video-modal" id="videoModal">
+    <div class="video-modal-overlay" onclick="closeVideoModal()"></div>
+    <div class="video-modal-content">
+      <div class="video-modal-header">
+        <h3 id="videoModalTitle">عنوان الفيديو</h3>
+        <button class="video-modal-close" onclick="closeVideoModal()">✕</button>
+      </div>
+      <div class="video-modal-body" id="videoModalBody">
+        <div class="video-placeholder-modal">
+          <div class="placeholder-icon">🎬</div>
+          <p>فيديو 3D سيتم إضافته قريبًا</p>
+          <p class="hint">يمكنك إضافة ملفات الفيديو في مجلد videos/</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== AI Chat Widget — Futuristic ===== -->
+  <button class="chat-widget-btn" id="chatBtn" onclick="toggleChat()" title="مساعد HomiX الذكي">
+    <span class="btn-icon">💬</span>
+  </button>
+  <div class="chat-widget" id="chatWidget">
+    <div class="chat-widget-header">
+      <div class="chat-title">
+        <div class="chat-avatar">🤖</div>
+        <div>
+          <h4>HomiX AI</h4>
+          <div class="status">متصل — ذكاء اصطناعي</div>
+        </div>
+      </div>
+      <button class="chat-widget-close" onclick="toggleChat()">✕</button>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-message bot">
+        مرحبًا! 👋 أنا <strong>HomiX AI</strong> — مساعدك الذكي.
+        <br>يمكنني مساعدتك في كل ما يخص نظام أمن المنزل الذكي.
+        <br><br>💡 جرب أحد الأزرار أدناه أو اكتب سؤالك!
+      </div>
+    </div>
+    <div class="chat-quick-actions" id="chatQuickActions">
+      <button class="quick-action-btn" onclick="sendQuickMessage('ما هي مزايا HomiX؟')">✨ المزايا</button>
+      <button class="quick-action-btn" onclick="sendQuickMessage('كيف يتم التركيب؟')">🔧 التركيب</button>
+      <button class="quick-action-btn" onclick="sendQuickMessage('أريد طلب Demo')">🎬 Demo</button>
+      <button class="quick-action-btn" onclick="sendQuickMessage('ما هي الباقات المتوفرة؟')">📦 الباقات</button>
+      <button class="quick-action-btn" onclick="sendQuickMessage('أحتاج دعم فني')">🛠️ دعم فني</button>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" id="chatInput" placeholder="اكتب رسالتك..." onkeypress="if(event.key==='Enter')sendMessage()" autocomplete="off">
+      <button id="chatSendBtn" onclick="sendMessage()">➤</button>
+    </div>
+    <div class="chat-powered">⚡ مدعوم بالذكاء الاصطناعي — HomiX AI</div>
+  </div>
+
+  <script src="js/main.js"></script>
+  <script src="js/chat.js"></script>
+</body>
+</html>

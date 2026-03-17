@@ -1,0 +1,12 @@
+{
+    "name": "HomiX",
+    "short_name": "HomiX",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0175C2",
+    "theme_color": "#0175C2",
+    "description": "HomiX - Smart Home Security",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": []
+}

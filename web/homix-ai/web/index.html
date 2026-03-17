@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>HomiX</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+  <div class="page">
+    <h1>HomiX Platform</h1>
+    <p>منصة عرض المشروع + مزاياه + فيديوهات 3D (ستضيفها لاحقًا).</p>
+  </div>
+
+  <!-- Chat Button -->
+  <button id="chatBtn" class="chat-btn" title="Chat">💬</button>
+
+  <!-- Chat Widget -->
+  <div id="chatWidget" class="chat-widget">
+    <div class="chat-header">
+      <div>
+        <div class="chat-title">HomiX AI</div>
+        <div class="chat-sub">مساعد المشروع (محلي)</div>
+      </div>
+      <button id="chatClose" class="icon-btn">✕</button>
+    </div>
+
+    <div id="chatMessages" class="chat-messages"></div>
+
+    <div class="chat-input">
+      <input id="chatInput" placeholder="اكتب سؤالك..." />
+      <button id="chatSend">إرسال</button>
+    </div>
+  </div>
+
+  <script src="chat-widget.js"></script>
+</body>
+</html>

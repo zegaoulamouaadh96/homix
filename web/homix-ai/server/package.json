@@ -1,0 +1,15 @@
+{
+  "name": "homix-ai-server",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "ingest": "node rag/ingest.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "sql.js": "^1.10.3"
+  }
+}
