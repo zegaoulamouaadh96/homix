@@ -2,7 +2,11 @@ node_modules/
 .env
 *.db
 *.sqlite
-dist/
-build/
-coverage/
 .vscode/
+
+frontend/.dart_tool/
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+
+backend/server/node_modules/

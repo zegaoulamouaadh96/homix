@@ -12,7 +12,7 @@ class ApiService {
   // للجهاز الحقيقي على نفس الشبكة: IP الكمبيوتر
   // للويب: localhost
   // عند استخدام جهاز فعلي مع ADB reverse استخدم localhost (adb reverse tcp:3000 tcp:3000)
-  static const String _baseUrl = 'http://localhost:3000/api';
+  static const String _baseUrl = 'http://5.135.79.223:3000/api';
 
   final Dio _dio = Dio(BaseOptions(
     baseUrl: _baseUrl,

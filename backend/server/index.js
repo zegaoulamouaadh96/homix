@@ -108,6 +108,10 @@ async function main() {
     }
   });
 
+  app.get("/", (req, res) => {
+    res.send("HomiX API is running");
+  });
+
   app.get("/health", (req, res) => res.json({ ok: true }));
 
   app.use("/api", buildRoutes({ db, mqttClient }));
