@@ -783,7 +783,7 @@ module.exports = function routes({ db, mqttClient }) {
   }
 
   // Admin Login
-  r.post("/admin/login", wrap(async (req, res) => {
+  const adminLoginHandler = wrap(async (req, res) => {
     const { username, password } = req.body || {};
     const cfg = await queryOne(db, "SELECT * FROM admin_config WHERE username=? LIMIT 1", [username]);
     if (!cfg || cfg.password !== password) {
@@ -791,7 +791,11 @@ module.exports = function routes({ db, mqttClient }) {
     }
     const token = signAdminToken(cfg.username);
     res.json({ success: true, token, admin: cfg.name });
-  }));
+  });
+
+  r.post("/admin/login", adminLoginHandler);
+  // Backward compatibility for older web clients
+  r.post("/login", adminLoginHandler);
 
   // Admin Stats
   r.get("/admin/stats", requireAdminAuth, wrap(async (req, res) => {
