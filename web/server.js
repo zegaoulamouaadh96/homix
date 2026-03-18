@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8000;
-const BACKEND = 'http://localhost:3000';
+const BACKEND = "http://5.135.79.223:3000";
 
 // ===== MIME Types =====
 const mimeTypes = {
@@ -97,13 +97,9 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // ===== API Routes – proxy to backend (port 3000) =====
+  
   if (pathname.startsWith('/api/')) {
-    // Map web paths to backend paths:
-    //   /api/login              -> /api/admin/login
-    //   /api/admin/*            -> /api/admin/*
-    //   /api/public/*           -> /api/public/*
-    //   /api/app/login          -> (not used by Flutter - keep for compatibility)
+   
     let backendPath;
 
     if (pathname === '/api/login') {
@@ -146,8 +142,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`✓ السيرفر يعمل على http://localhost:${PORT}`);
-  console.log(`✓ لوحة الإدارة: http://localhost:${PORT}/login.html`);
-  console.log(`✓ يُمرر API calls إلى http://localhost:3000`);
+  console.log(`✓ السيرفر يعمل على http://5.135.79.223:${PORT}`);
+  console.log(`✓ لوحة الإدارة: http://5.135.79.223:${PORT}/login.html`);
+  console.log(`✓ يُمرر API calls إلى http://5.135.79.223:3000`);
   console.log(`✓ اضغط Ctrl+C لإيقاف السيرفر`);
 });

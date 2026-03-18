@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8000;
-const BACKEND = 'http://localhost:3000';
+const BACKEND = 'http://5.135.79.223:3000';
 
 // ===== MIME Types =====
 const mimeTypes = {
@@ -146,8 +146,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`✓ السيرفر يعمل على http://localhost:${PORT}`);
-  console.log(`✓ لوحة الإدارة: http://localhost:${PORT}/login.html`);
-  console.log(`✓ يُمرر API calls إلى http://localhost:3000`);
+  console.log(`✓ السيرفر يعمل على http://5.135.79.223:${PORT}`);
+  console.log(`✓ لوحة الإدارة: http://5.135.79.223:${PORT}/login.html`);
+  console.log(`✓ يُمرر API calls إلى http://5.135.79.223:3000`);
   console.log(`✓ اضغط Ctrl+C لإيقاف السيرفر`);
 });
