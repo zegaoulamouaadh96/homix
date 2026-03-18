@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const { openDb, initDb, saveDb, queryOne, exec } = require("./db");
 const { startMqttBroker, connectMqttClient } = require("./mqtt");
 const buildRoutes = require("./routes");
@@ -109,8 +110,10 @@ async function main() {
   });
 
   app.get("/", (req, res) => {
-    res.send("HomiX API is running");
+    res.sendFile(path.join(__dirname, "../../web/index.html"));
   });
+
+  app.use(express.static(path.join(__dirname, "../../web")));
 
   app.get("/health", (req, res) => res.json({ ok: true }));
 
