@@ -532,7 +532,10 @@ class ApiService {
           'frames': frames,
           'challenge_token': challengeToken,
         },
-        options: _authHeaders(token),
+        options: _authHeaders(token).copyWith(
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 90),
+        ),
       );
       final data = Map<String, dynamic>.from(res.data as Map);
       if (data['ok'] == true) return ApiResult.success(data);
@@ -559,7 +562,10 @@ class ApiService {
         options: Options(headers: {
           'Authorization': 'Bearer $_faceDeviceToken',
           'Content-Type': 'application/json',
-        }),
+        }).copyWith(
+          sendTimeout: const Duration(seconds: 20),
+          receiveTimeout: const Duration(seconds: 45),
+        ),
       );
       final data = Map<String, dynamic>.from(res.data as Map);
       if (data['ok'] == true) return ApiResult.success(data);

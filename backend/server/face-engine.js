@@ -3,8 +3,8 @@ const FACE_MIN_REGISTER_FRAMES = Number(process.env.FACE_MIN_REGISTER_FRAMES || 
 const FACE_MAX_REGISTER_FRAMES = Number(process.env.FACE_MAX_REGISTER_FRAMES || 14);
 const FACE_PYTHON_URL = process.env.FACE_PYTHON_URL || "http://127.0.0.1:5000";
 
-const FACE_TIMEOUT_MS = Number(process.env.FACE_TIMEOUT_MS || 15000);
-const FACE_RETRY_COUNT = Number(process.env.FACE_RETRY_COUNT || 2);
+const FACE_TIMEOUT_MS = Number(process.env.FACE_TIMEOUT_MS || 30000);
+const FACE_RETRY_COUNT = Number(process.env.FACE_RETRY_COUNT || 1);
 const FACE_RETRY_BACKOFF_MS = Number(process.env.FACE_RETRY_BACKOFF_MS || 250);
 const FACE_MAX_IN_FLIGHT = Number(process.env.FACE_MAX_IN_FLIGHT || 3);
 const FACE_MAX_QUEUE = Number(process.env.FACE_MAX_QUEUE || 200);
