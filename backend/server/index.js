@@ -132,7 +132,7 @@ async function main() {
     }
   }
 
-  const mqttUrl = process.env.MQTT_URL || `ws://localhost:${listener.port}/mqtt`;
+  const mqttUrl = process.env.MQTT_URL || `ws://127.0.0.1:${listener.port}/mqtt`;
 
   // Connect internal MQTT client
   realMqttClient = connectMqttClient({
