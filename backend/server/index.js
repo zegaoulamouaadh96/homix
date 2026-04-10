@@ -116,13 +116,20 @@ async function main() {
 
   const port = Number(process.env.PORT || 3000);
   const listener = await listenWithFallback(() => http.createServer(app), port, "0.0.0.0", 10);
-  startMqttWsBroker(listener.server, "/mqtt");
   console.log(`API on http://0.0.0.0:${listener.port}`);
-  console.log(`MQTT over WS on ws://0.0.0.0:${listener.port}/mqtt`);
 
   try {
-    const enableTcpMqtt = process.env.MQTT_ENABLE_TCP === "true";
+    const enableWsMqtt = process.env.MQTT_ENABLE_WS === "true";
+    const enableTcpMqtt = process.env.MQTT_ENABLE_TCP !== "false";
     const mqttPort = Number(process.env.MQTT_PORT || 1883);
+
+    if (enableWsMqtt) {
+      startMqttWsBroker(listener.server, "/mqtt");
+      console.log(`MQTT over WS on ws://0.0.0.0:${listener.port}/mqtt`);
+    } else {
+      console.log("MQTT over WS disabled (set MQTT_ENABLE_WS=true to enable)");
+    }
+
     if (enableTcpMqtt) {
       try {
         await startMqttBroker(mqttPort);
@@ -135,7 +142,10 @@ async function main() {
       }
     }
 
-    const mqttUrl = process.env.MQTT_URL || `ws://127.0.0.1:${listener.port}/mqtt`;
+    const mqttUrl = process.env.MQTT_URL
+      || (enableWsMqtt
+        ? `ws://127.0.0.1:${listener.port}/mqtt`
+        : `mqtt://127.0.0.1:${mqttPort}`);
 
     // Connect internal MQTT client
     realMqttClient = connectMqttClient({

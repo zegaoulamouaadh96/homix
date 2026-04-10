@@ -11,6 +11,7 @@ Linux quick run (no Ctrl+C shutdown issues)
    Important:
    - Set JWT_SECRET to a strong random value.
    - Keep FACE_PYTHON_URL as http://127.0.0.1:5000
+   - Keep MQTT_ENABLE_WS=false unless you explicitly need MQTT over WebSocket.
 
 3) Make scripts executable once
    chmod +x /opt/PFE/tools/linux/homix-start.sh

@@ -1,7 +1,6 @@
 const Aedes = require("aedes");
 const net = require("net");
 const mqtt = require("mqtt");
-const websocketStream = require("websocket-stream");
 
 function startMqttBroker(port = 1883) {
   return new Promise((resolve, reject) => {
@@ -22,6 +21,14 @@ function startMqttBroker(port = 1883) {
 }
 
 function startMqttWsBroker(httpServer, path = "/mqtt") {
+  let websocketStream;
+  try {
+    websocketStream = require("websocket-stream");
+  } catch (err) {
+    console.warn("websocket-stream not installed; MQTT over WS disabled");
+    return null;
+  }
+
   const aedes = Aedes();
   const wsServer = websocketStream.createServer({ server: httpServer, path }, aedes.handle);
 
