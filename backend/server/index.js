@@ -117,71 +117,74 @@ async function main() {
   const port = Number(process.env.PORT || 3000);
   const listener = await listenWithFallback(() => http.createServer(app), port, "0.0.0.0", 10);
   startMqttWsBroker(listener.server, "/mqtt");
-
-  const enableTcpMqtt = process.env.MQTT_ENABLE_TCP === "true";
-  const mqttPort = Number(process.env.MQTT_PORT || 1883);
-  if (enableTcpMqtt) {
-    try {
-      await startMqttBroker(mqttPort);
-    } catch (err) {
-      if (err?.code === "EADDRINUSE") {
-        console.warn(`MQTT broker port ${mqttPort} already in use. Reusing existing broker.`);
-      } else {
-        throw err;
-      }
-    }
-  }
-
-  const mqttUrl = process.env.MQTT_URL || `ws://127.0.0.1:${listener.port}/mqtt`;
-
-  // Connect internal MQTT client
-  realMqttClient = connectMqttClient({
-    mqttUrl,
-    onTelemetry: async ({ homeCode, deviceId, payload }) => {
-      try {
-        const h = await queryOne(db, "SELECT id FROM homes WHERE home_code=?", [homeCode]);
-        if (!h) return;
-        await ensureDeviceExists(h.id, deviceId, payload);
-        await exec(db,
-          "INSERT INTO device_states(device_key, home_id, device_id, state, updated_at) VALUES(?,?,?,?,datetime('now')) ON CONFLICT (device_key) DO UPDATE SET state=excluded.state, updated_at=datetime('now')",
-          [`${h.id}:${deviceId}`, h.id, deviceId, JSON.stringify(payload)]
-        );
-        saveDb();
-      } catch (err) {
-        console.error("Failed to store telemetry:", err);
-      }
-    },
-    onEvent: async ({ homeCode, deviceId, payload }) => {
-      try {
-        const h = await queryOne(db, "SELECT id FROM homes WHERE home_code=?", [homeCode]);
-        if (!h) return;
-        await ensureDeviceExists(h.id, deviceId, payload);
-        const type = payload.type || "unknown";
-        await exec(db, "INSERT INTO events(home_id, device_id, type, payload) VALUES(?,?,?,?)",
-          [h.id, deviceId, type, JSON.stringify(payload)]
-        );
-        saveDb();
-      } catch (err) {
-        console.error("Failed to store event:", err);
-      }
-    },
-    onAck: async ({ homeCode, deviceId, payload }) => {
-      try {
-        const h = await queryOne(db, "SELECT id FROM homes WHERE home_code=?", [homeCode]);
-        if (!h) return;
-        await ensureDeviceExists(h.id, deviceId, payload);
-        await exec(db, "INSERT INTO events(home_id, device_id, type, payload) VALUES(?,?,?,?)",
-          [h.id, deviceId, "ack", JSON.stringify(payload)]
-        );
-        saveDb();
-      } catch (err) {
-        console.error("Failed to store ack:", err);
-      }
-    }
-  });
-
   console.log(`API on http://0.0.0.0:${listener.port}`);
   console.log(`MQTT over WS on ws://0.0.0.0:${listener.port}/mqtt`);
+
+  try {
+    const enableTcpMqtt = process.env.MQTT_ENABLE_TCP === "true";
+    const mqttPort = Number(process.env.MQTT_PORT || 1883);
+    if (enableTcpMqtt) {
+      try {
+        await startMqttBroker(mqttPort);
+      } catch (err) {
+        if (err?.code === "EADDRINUSE") {
+          console.warn(`MQTT broker port ${mqttPort} already in use. Reusing existing broker.`);
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    const mqttUrl = process.env.MQTT_URL || `ws://127.0.0.1:${listener.port}/mqtt`;
+
+    // Connect internal MQTT client
+    realMqttClient = connectMqttClient({
+      mqttUrl,
+      onTelemetry: async ({ homeCode, deviceId, payload }) => {
+        try {
+          const h = await queryOne(db, "SELECT id FROM homes WHERE home_code=?", [homeCode]);
+          if (!h) return;
+          await ensureDeviceExists(h.id, deviceId, payload);
+          await exec(db,
+            "INSERT INTO device_states(device_key, home_id, device_id, state, updated_at) VALUES(?,?,?,?,datetime('now')) ON CONFLICT (device_key) DO UPDATE SET state=excluded.state, updated_at=datetime('now')",
+            [`${h.id}:${deviceId}`, h.id, deviceId, JSON.stringify(payload)]
+          );
+          saveDb();
+        } catch (err) {
+          console.error("Failed to store telemetry:", err);
+        }
+      },
+      onEvent: async ({ homeCode, deviceId, payload }) => {
+        try {
+          const h = await queryOne(db, "SELECT id FROM homes WHERE home_code=?", [homeCode]);
+          if (!h) return;
+          await ensureDeviceExists(h.id, deviceId, payload);
+          const type = payload.type || "unknown";
+          await exec(db, "INSERT INTO events(home_id, device_id, type, payload) VALUES(?,?,?,?)",
+            [h.id, deviceId, type, JSON.stringify(payload)]
+          );
+          saveDb();
+        } catch (err) {
+          console.error("Failed to store event:", err);
+        }
+      },
+      onAck: async ({ homeCode, deviceId, payload }) => {
+        try {
+          const h = await queryOne(db, "SELECT id FROM homes WHERE home_code=?", [homeCode]);
+          if (!h) return;
+          await ensureDeviceExists(h.id, deviceId, payload);
+          await exec(db, "INSERT INTO events(home_id, device_id, type, payload) VALUES(?,?,?,?)",
+            [h.id, deviceId, "ack", JSON.stringify(payload)]
+          );
+          saveDb();
+        } catch (err) {
+          console.error("Failed to store ack:", err);
+        }
+      }
+    });
+  } catch (err) {
+    console.error("MQTT initialization failed; API will continue without internal MQTT client:", err.message || err);
+  }
 }
 
 main().catch((e) => {
