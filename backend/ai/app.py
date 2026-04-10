@@ -13,13 +13,54 @@ local_insightface_pkg = os.path.join(os.path.dirname(__file__), "insightface", "
 if local_insightface_pkg not in sys.path:
     sys.path.insert(0, local_insightface_pkg)
 
-# Keep InsightFace model cache on D by default to avoid filling C.
-if not os.getenv("INSIGHTFACE_HOME"):
-    os.environ["INSIGHTFACE_HOME"] = r"D:\homix-cache\insightface-models"
-    os.environ["HOME"] = r"D:\homix-cache"
-    os.environ["USERPROFILE"] = r"D:\homix-cache"
+def _apply_default_cache_paths() -> None:
+    if os.getenv("INSIGHTFACE_HOME"):
+        return
 
-from insightface.app import FaceAnalysis
+    if os.name == "nt":
+        cache_root = r"D:\homix-cache"
+        os.environ["INSIGHTFACE_HOME"] = os.path.join(cache_root, ".insightface")
+        os.environ["HOME"] = cache_root
+        os.environ["USERPROFILE"] = cache_root
+    else:
+        cache_root = "/opt/homix-cache"
+        os.environ["INSIGHTFACE_HOME"] = os.path.join(cache_root, ".insightface")
+
+    os.makedirs(os.environ["INSIGHTFACE_HOME"], exist_ok=True)
+
+
+def _patch_insightface_optional_imports() -> None:
+    target = os.path.join(local_insightface_pkg, "insightface", "app", "__init__.py")
+    if not os.path.exists(target):
+        return
+
+    try:
+        with open(target, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        marker = "from .mask_renderer import *"
+        if marker not in content:
+            return
+
+        if "optional compiled face3d extension" in content:
+            return
+
+        patched = content.replace(
+            marker,
+            "try:\n\tfrom .mask_renderer import *\nexcept Exception:\n\t# mask_renderer depends on optional compiled face3d extension.\n\tpass",
+        )
+
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(patched)
+    except Exception:
+        # Best-effort patching only.
+        pass
+
+
+_apply_default_cache_paths()
+_patch_insightface_optional_imports()
+
+from insightface.app.face_analysis import FaceAnalysis
 
 
 app = Flask(__name__)
