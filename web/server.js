@@ -4,7 +4,9 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8000;
-const BACKEND = "http://5.135.79.223:3000";
+const PRIMARY_BACKEND = process.env.BACKEND_URL || "http://5.135.79.223:3000";
+const BACKENDS = [PRIMARY_BACKEND, "http://127.0.0.1:3000"];
+const STATIC_ROOT = __dirname;
 
 // ===== MIME Types =====
 const mimeTypes = {
@@ -44,43 +46,54 @@ function json(res, data, status = 200) {
 // ===== Proxy API calls to backend =====
 function proxyToBackend(req, res, backendPath) {
   return new Promise((resolve) => {
-    const target = new URL(BACKEND);
-    const options = {
-      hostname: target.hostname,
-      port: target.port || 80,
-      path: backendPath,
-      method: req.method,
-      headers: {
-        'content-type': req.headers['content-type'] || 'application/json',
-        'authorization': req.headers['authorization'] || '',
-      }
-    };
-
     const chunks = [];
     req.on('data', chunk => chunks.push(chunk));
     req.on('end', () => {
       const body = Buffer.concat(chunks);
-      if (body.length > 0) {
-        options.headers['content-length'] = body.length;
-      }
 
-      const proxyReq = http.request(options, (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, {
-          'Content-Type': proxyRes.headers['content-type'] || 'application/json',
-          'Access-Control-Allow-Origin': '*',
+      const tryBackend = (index) => {
+        if (index >= BACKENDS.length) {
+          json(res, { success: false, message: 'تعذر الاتصال بالخادم الرئيسي' }, 502);
+          resolve();
+          return;
+        }
+
+        const target = new URL(BACKENDS[index]);
+        const options = {
+          hostname: target.hostname,
+          port: target.port || 80,
+          path: backendPath,
+          method: req.method,
+          headers: {
+            'content-type': req.headers['content-type'] || 'application/json',
+            'authorization': req.headers['authorization'] || '',
+          }
+        };
+        if (body.length > 0) options.headers['content-length'] = body.length;
+
+        const proxyReq = http.request(options, (proxyRes) => {
+          if (proxyRes.statusCode === 404 && index < BACKENDS.length - 1) {
+            proxyRes.resume();
+            return tryBackend(index + 1);
+          }
+
+          res.writeHead(proxyRes.statusCode, {
+            'Content-Type': proxyRes.headers['content-type'] || 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          });
+          proxyRes.pipe(res);
+          proxyRes.on('end', resolve);
         });
-        proxyRes.pipe(res);
-        proxyRes.on('end', resolve);
-      });
 
-      proxyReq.on('error', (err) => {
-        console.error('Proxy error:', err.message);
-        json(res, { success: false, message: 'تعذر الاتصال بالخادم الرئيسي' }, 502);
-        resolve();
-      });
+        proxyReq.on('error', () => {
+          tryBackend(index + 1);
+        });
 
-      if (body.length > 0) proxyReq.write(body);
-      proxyReq.end();
+        if (body.length > 0) proxyReq.write(body);
+        proxyReq.end();
+      };
+
+      tryBackend(0);
     });
   });
 }
@@ -117,10 +130,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ===== Static Files =====
-  let filePath = '.' + pathname;
-  if (filePath === './') filePath = './index.html';
-
-  filePath = decodeURIComponent(filePath);
+  let filePath = decodeURIComponent(pathname);
+  if (filePath === '/') filePath = '/index.html';
+  filePath = path.join(STATIC_ROOT, filePath);
 
   const extname = String(path.extname(filePath)).toLowerCase();
   const contentType = mimeTypes[extname] || 'application/octet-stream';
@@ -142,8 +154,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`✓ السيرفر يعمل على http://5.135.79.223:${PORT}`);
-  console.log(`✓ لوحة الإدارة: http://5.135.79.223:${PORT}/login.html`);
-  console.log(`✓ يُمرر API calls إلى http://5.135.79.223:3000`);
+  console.log(`✓ السيرفر يعمل على http://localhost:${PORT}`);
+  console.log(`✓ لوحة الإدارة: http://localhost:${PORT}/login.html`);
+  console.log(`✓ يُمرر API calls إلى ${BACKENDS.join(' ثم ')}`);
   console.log(`✓ اضغط Ctrl+C لإيقاف السيرفر`);
 });

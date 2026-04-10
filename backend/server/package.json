@@ -3,16 +3,25 @@
   "version": "1.0.0",
   "main": "index.js",
   "type": "commonjs",
-  "scripts": { "start": "node index.js" },
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
+    "@tensorflow-models/face-detection": "^1.0.3",
+    "@tensorflow-models/face-landmarks-detection": "^1.0.6",
+    "@tensorflow-models/mobilenet": "^2.1.1",
+    "@tensorflow/tfjs": "^4.22.0",
     "aedes": "^0.51.3",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "jimp": "^0.22.12",
     "mqtt": "^5.10.1",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.4",
     "pg": "^8.12.0",
+    "websocket-stream": "^5.5.2",
     "zod": "^3.23.8"
   }
 }

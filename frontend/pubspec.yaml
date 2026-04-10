@@ -37,6 +37,7 @@ dependencies:
 
   # Image Picker for Camera & Gallery
   image_picker: ^1.0.0
+  camera: ^0.11.0+2
   
   # HTTP for file uploads
   http: ^1.1.0

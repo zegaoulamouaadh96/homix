@@ -131,6 +131,45 @@ async function initDb(db) {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS face_challenges (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      challenge_type TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS user_face_encodings (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      encoding_json TEXT NOT NULL,
+      challenge_type TEXT,
+      confidence_score REAL DEFAULT 0,
+      liveness_verified SMALLINT DEFAULT 0 CHECK (liveness_verified IN (0, 1)),
+      anti_spoof_verified SMALLINT DEFAULT 0 CHECK (anti_spoof_verified IN (0, 1)),
+      status TEXT DEFAULT 'active',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS face_recognition_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      home_id INTEGER REFERENCES homes(id) ON DELETE SET NULL,
+      device_id TEXT,
+      attempt_type TEXT NOT NULL,
+      challenge_requested TEXT,
+      challenge_passed SMALLINT CHECK (challenge_passed IN (0, 1)),
+      liveness_status TEXT,
+      anti_spoof_status TEXT,
+      distance REAL,
+      result TEXT NOT NULL,
+      reason TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS clients (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -180,6 +219,9 @@ async function initDb(db) {
       id SERIAL PRIMARY KEY,
       home_id INTEGER REFERENCES homes(id) ON DELETE SET NULL,
       status TEXT DEFAULT 'scheduled',
+      install_date TIMESTAMPTZ,
+      notes TEXT DEFAULT '',
+      completed_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
@@ -188,6 +230,17 @@ async function initDb(db) {
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       name TEXT DEFAULT 'المسؤول'
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_staff (
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'staff',
+      is_active SMALLINT DEFAULT 1 CHECK (is_active IN (0, 1)),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      last_login_at TIMESTAMPTZ
     );
 
     INSERT INTO admin_config(username, password, name)
@@ -208,8 +261,15 @@ async function initDb(db) {
     ALTER TABLE devices ADD COLUMN IF NOT EXISTS metadata TEXT DEFAULT '{}';
     ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_active SMALLINT DEFAULT 1;
 
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS install_date TIMESTAMPTZ;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+
     CREATE INDEX IF NOT EXISTS idx_devices_home ON devices(home_id);
     CREATE INDEX IF NOT EXISTS idx_devices_home_category ON devices(home_id, category);
+    CREATE INDEX IF NOT EXISTS idx_face_challenges_user ON face_challenges(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_face_logs_home ON face_recognition_logs(home_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_face_logs_user ON face_recognition_logs(user_id, created_at DESC);
   `);
 }
 

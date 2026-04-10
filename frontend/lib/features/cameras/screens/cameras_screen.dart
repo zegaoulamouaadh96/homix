@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:smart_home_security/core/services/api_service.dart';
 import 'package:smart_home_security/core/theme/app_colors.dart';
 
@@ -236,6 +239,136 @@ class _CamerasScreenState extends State<CamerasScreen> {
     if (result.ok) await _loadCameras();
   }
 
+  Future<void> _startFaceRegistrationFlow() async {
+    final challenge = await _api.getFaceChallenge();
+    if (!mounted) return;
+    if (!challenge.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(challenge.errorMessage),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final challengeData = challenge.data ?? {};
+    final challengeToken = (challengeData['challenge_token'] ?? '').toString();
+    final instruction =
+        (challengeData['instruction_ar'] ?? 'اتبع التعليمات').toString();
+    if (challengeToken.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تعذر بدء تحدي الوجه'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final frames = await showDialog<List<String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _FaceCaptureDialog(instruction: instruction),
+    );
+
+    if (!mounted || frames == null || frames.length < 10) return;
+
+    final result = await _api.registerFaceFrames(
+      frames: frames,
+      challengeToken: challengeToken,
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.ok
+              ? 'تم تسجيل الوجه بنجاح (${(((result.data?['confidence'] ?? 0.0) as num) * 100).toStringAsFixed(1)}%)'
+              : result.errorMessage,
+        ),
+        backgroundColor: result.ok ? AppColors.secure : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _unlockDoorWithFaceFlow() async {
+    final homeCode = await _api.getHomeCode();
+    final homeId = await _api.getHomeId();
+    if (!mounted) return;
+    if (homeCode == null || homeId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('يرجى ربط الحساب بمنزل أولًا'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final devicesRes = await _api.getDevicesCatalog(homeId);
+    if (!mounted) return;
+    if (!devicesRes.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(devicesRes.errorMessage),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final devices = (devicesRes.data?['devices'] as List?) ?? const [];
+    final door = devices
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e.cast<String, dynamic>()))
+        .firstWhere(
+          (d) => (d['category'] ?? '').toString().toLowerCase() == 'door',
+          orElse: () => <String, dynamic>{},
+        );
+
+    final doorId = (door['device_id'] ?? '').toString();
+    if (doorId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لم يتم العثور على جهاز باب في المنزل'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final picker = ImagePicker();
+    final photo = await picker.pickImage(
+      source: ImageSource.camera,
+      preferredCameraDevice: CameraDevice.front,
+      imageQuality: 80,
+      maxWidth: 1280,
+    );
+
+    if (photo == null) return;
+    final bytes = await photo.readAsBytes();
+    final imageBase64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+    final unlock = await _api.unlockDoorWithFace(
+      homeCode: homeCode,
+      doorDeviceId: doorId,
+      imageBase64: imageBase64,
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          unlock.ok
+              ? 'تم فتح الباب بالوجه (${(((unlock.data?['confidence'] ?? 0.0) as num) * 100).toStringAsFixed(1)}%)'
+              : unlock.errorMessage,
+        ),
+        backgroundColor: unlock.ok ? AppColors.secure : AppColors.error,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -298,6 +431,17 @@ class _CamerasScreenState extends State<CamerasScreen> {
                     onPressed: _showAddCameraDialog,
                     icon: const Icon(Icons.add_circle_outline,
                         color: AppColors.neonBlue),
+                  ),
+                  IconButton(
+                    onPressed: _startFaceRegistrationFlow,
+                    icon: const Icon(Icons.face_retouching_natural,
+                        color: AppColors.neonBlue),
+                    tooltip: 'تسجيل الوجه (10 Frames)',
+                  ),
+                  IconButton(
+                    onPressed: _unlockDoorWithFaceFlow,
+                    icon: const Icon(Icons.lock_open, color: AppColors.secure),
+                    tooltip: 'فتح الباب بالوجه',
                   ),
                   IconButton(
                     onPressed: _deleteSelectedCamera,
@@ -453,6 +597,153 @@ class _CamerasScreenState extends State<CamerasScreen> {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _FaceCaptureDialog extends StatefulWidget {
+  final String instruction;
+  const _FaceCaptureDialog({required this.instruction});
+
+  @override
+  State<_FaceCaptureDialog> createState() => _FaceCaptureDialogState();
+}
+
+class _FaceCaptureDialogState extends State<_FaceCaptureDialog> {
+  CameraController? _controller;
+  Timer? _timer;
+  bool _capturing = false;
+  bool _busy = false;
+  String? _error;
+  final List<String> _frames = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cams = await availableCameras();
+      if (cams.isEmpty) {
+        setState(() => _error = 'لا توجد كاميرا متاحة');
+        return;
+      }
+
+      final front = cams.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cams.first,
+      );
+
+      final controller = CameraController(
+        front,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await controller.initialize();
+      if (!mounted) return;
+      setState(() => _controller = controller);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'فشل تشغيل الكاميرا: $e');
+    }
+  }
+
+  void _startCapture() {
+    if (_capturing ||
+        _controller == null ||
+        !_controller!.value.isInitialized) {
+      return;
+    }
+
+    setState(() {
+      _capturing = true;
+      _error = null;
+    });
+
+    _timer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+      if (_busy || _controller == null) return;
+      _busy = true;
+      try {
+        final shot = await _controller!.takePicture();
+        final bytes = await shot.readAsBytes();
+        _frames.add('data:image/jpeg;base64,${base64Encode(bytes)}');
+
+        if (!mounted) return;
+        setState(() {});
+
+        if (_frames.length >= 10) {
+          timer.cancel();
+          if (!mounted) return;
+          Navigator.of(context).pop(_frames);
+        }
+      } catch (e) {
+        timer.cancel();
+        if (!mounted) return;
+        setState(() {
+          _capturing = false;
+          _error = 'فشل التقاط الإطارات: $e';
+        });
+      } finally {
+        _busy = false;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.charcoal,
+      title: const Text('تسجيل الوجه'),
+      content: SizedBox(
+        width: 360.w,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.instruction,
+                style: TextStyle(color: AppColors.neonBlue, fontSize: 13.sp)),
+            SizedBox(height: 8.h),
+            if (_error != null)
+              Text(_error!,
+                  style: TextStyle(color: AppColors.error, fontSize: 12.sp)),
+            SizedBox(height: 8.h),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12.r),
+              child: Container(
+                color: AppColors.deepBlack,
+                height: 220.h,
+                width: double.infinity,
+                child: (_controller != null && _controller!.value.isInitialized)
+                    ? CameraPreview(_controller!)
+                    : const Center(child: CircularProgressIndicator()),
+              ),
+            ),
+            SizedBox(height: 10.h),
+            Text('تم التقاط: ${_frames.length}/10',
+                style: TextStyle(color: AppColors.silver, fontSize: 12.sp)),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+        ElevatedButton(
+          onPressed: _capturing ? null : _startCapture,
+          child: Text(_capturing ? 'جارٍ الالتقاط...' : 'ابدأ الالتقاط'),
+        ),
+      ],
     );
   }
 }

@@ -23,7 +23,7 @@ function addMessage(text, who="bot"){
 }
 
 async function askAI(message){
-  const res = await fetch("http://localhost:3005/api/chat",{
+  const res = await fetch("/api/chat",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ sessionId: getSessionId(), message })
@@ -46,7 +46,7 @@ async function send(){
     addMessage(reply, "bot");
   }catch(e){
     chatMessages.lastChild.remove();
-    addMessage("تعذر الاتصال بالسيرفر المحلي. تأكد أن server شغال على 3005.", "bot");
+    addMessage("تعذر الاتصال بالسيرفر المحلي. تأكد أن API شغالة على نفس الدومين/المنفذ.", "bot");
   }
 }
 

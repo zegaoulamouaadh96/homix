@@ -4,8 +4,18 @@ const { z } = require("zod");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 const { signToken, requireAuth, sha256, hashPassword, verifyPassword } = require("./auth");
 const { queryAll, queryOne, exec, saveDb } = require("./db");
+const {
+  randomChallenge,
+  analyzeFrames,
+  verifyImageAgainstEncoding,
+  MATCH_DISTANCE_THRESHOLD,
+  getFaceEngineMetrics,
+} = require("./face-engine");
+
+const HOMIX_AI_URL = process.env.HOMIX_AI_URL || "http://localhost:3005";
 
 // Multer: in-memory storage for image uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -62,6 +72,55 @@ module.exports = function routes({ db, mqttClient }) {
     return `${labels[category] || "جهاز"} ${index}`;
   }
 
+  // ============ Email Helper ============
+  const mailer = (() => {
+    if (!process.env.SMTP_HOST) return null;
+    try {
+      return nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: process.env.SMTP_SECURE === "true",
+        auth: process.env.SMTP_USER
+          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS || "" }
+          : undefined
+      });
+    } catch (err) {
+      console.error("Failed to init mailer:", err.message);
+      return null;
+    }
+  })();
+
+  async function sendEmail({ to, subject, text, html }) {
+    if (!to) return { sent: false, reason: "no_recipient" };
+    if (!mailer) {
+      console.log("[mail] skipped (mailer not configured)", { to, subject });
+      return { sent: false, reason: "mailer_not_configured" };
+    }
+    try {
+      await mailer.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER || "no-reply@homix.local",
+        to,
+        subject,
+        text,
+        html: html || text
+      });
+      return { sent: true };
+    } catch (err) {
+      console.error("[mail] send failed", err.message);
+      return { sent: false, reason: err.message };
+    }
+  }
+
+  function maskEmail(email = "") {
+    const value = String(email).trim();
+    const at = value.indexOf("@");
+    if (at <= 1) return value;
+    const name = value.slice(0, at);
+    const domain = value.slice(at + 1);
+    const visible = name.length <= 2 ? name[0] : name.slice(0, 2);
+    return `${visible}***@${domain}`;
+  }
+
   function parseJson(value, fallback = {}) {
     try {
       if (value == null) return fallback;
@@ -70,6 +129,77 @@ module.exports = function routes({ db, mqttClient }) {
     } catch {
       return fallback;
     }
+  }
+
+  function isSecureRequest(req) {
+    if (req.secure) return true;
+    const proto = String(req.headers["x-forwarded-proto"] || "").toLowerCase();
+    return proto === "https";
+  }
+
+  const FACE_ENFORCE_HTTPS = (() => {
+    if (process.env.FACE_REQUIRE_HTTPS === "true") return true;
+    if (process.env.FACE_REQUIRE_HTTPS === "false") return false;
+    return process.env.NODE_ENV === "production";
+  })();
+  const FACE_RATE_WINDOW_MS = Number(process.env.FACE_RATE_WINDOW_MS || 60000);
+  const FACE_RATE_MAX = Number(process.env.FACE_RATE_MAX || 40);
+  const FACE_SPOOF_MIN = Number(process.env.FACE_SPOOF_MIN || 0.55);
+  const FACE_QUALITY_MIN = Number(process.env.FACE_QUALITY_MIN || 0.45);
+  const FACE_LIVENESS_MIN = Number(process.env.FACE_LIVENESS_MIN || 0.55);
+  const faceRateBuckets = new Map();
+
+  function faceRateLimit(scope = "default") {
+    return (req, res, next) => {
+      const ip = String(req.ip || req.headers["x-forwarded-for"] || "unknown");
+      const key = `${scope}:${ip}`;
+      const now = Date.now();
+      const row = faceRateBuckets.get(key) || { count: 0, resetAt: now + FACE_RATE_WINDOW_MS };
+
+      if (now > row.resetAt) {
+        row.count = 0;
+        row.resetAt = now + FACE_RATE_WINDOW_MS;
+      }
+
+      row.count += 1;
+      faceRateBuckets.set(key, row);
+
+      if (row.count > FACE_RATE_MAX) {
+        return res.status(429).json({ ok: false, error: "rate_limit_exceeded" });
+      }
+      next();
+    };
+  }
+
+  function requireFaceTransport(req, res, next) {
+    if (FACE_ENFORCE_HTTPS && !isSecureRequest(req)) {
+      return res.status(400).json({ ok: false, error: "https_required" });
+    }
+    return next();
+  }
+
+  function allowedDeviceTokens() {
+    const current = process.env.FACE_DEVICE_TOKEN || "dev-face-device-token";
+    const next = process.env.FACE_DEVICE_TOKEN_NEXT || "";
+    const rotateAt = Date.parse(process.env.FACE_DEVICE_TOKEN_ROTATE_AT || "");
+    const graceMs = Number(process.env.FACE_DEVICE_TOKEN_GRACE_MS || 24 * 60 * 60 * 1000);
+    const now = Date.now();
+
+    if (!next) return [current];
+    if (!Number.isFinite(rotateAt)) return [current, next];
+    if (now < rotateAt) return [current];
+    if (now <= rotateAt + graceMs) return [next, current];
+    return [next];
+  }
+
+  function requireDeviceToken(req, res, next) {
+    const auth = String(req.headers.authorization || "");
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const valid = allowedDeviceTokens();
+    if (!token || !valid.includes(token)) {
+      return res.status(401).json({ ok: false, error: "invalid_device_token" });
+    }
+    return next();
   }
 
   function applyCommandToState(currentState, cmd, value) {
@@ -139,10 +269,7 @@ module.exports = function routes({ db, mqttClient }) {
 
     const defaults = [
       { device_id: "camera_1", name: defaultDeviceName("camera", 1), category: "camera", location: "المدخل" },
-      { device_id: "seismic_1", name: defaultDeviceName("seismic", 1), category: "seismic", location: "المدخل" },
-      { device_id: "seismic_2", name: defaultDeviceName("seismic", 2), category: "seismic", location: "غرفة المعيشة" },
-      { device_id: "seismic_3", name: defaultDeviceName("seismic", 3), category: "seismic", location: "المطبخ" },
-      { device_id: "seismic_4", name: defaultDeviceName("seismic", 4), category: "seismic", location: "المرآب" },
+    
     ];
 
     for (const d of defaults) {
@@ -732,6 +859,398 @@ module.exports = function routes({ db, mqttClient }) {
     res.send(buffer);
   }));
 
+  // ==================== Face Recognition + Active Liveness ====================
+
+  r.get("/auth/face/challenge", requireAuth, faceRateLimit("face_challenge"), requireFaceTransport, wrap(async (req, res) => {
+    const challenge = randomChallenge();
+    const token = crypto.randomBytes(24).toString("hex");
+    const tokenHash = sha256(token);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+    await exec(
+      db,
+      "INSERT INTO face_challenges(user_id, challenge_type, token_hash, expires_at) VALUES(?,?,?,?)",
+      [req.userId, challenge.type, tokenHash, expiresAt]
+    );
+
+    res.json({
+      ok: true,
+      challenge: challenge.type,
+      instruction_ar: challenge.instruction_ar,
+      instruction_en: challenge.instruction_en,
+      duration_seconds: challenge.duration_seconds,
+      challenge_token: token,
+      expires_at: expiresAt,
+    });
+  }));
+
+  r.get("/auth/face/status", requireAuth, wrap(async (req, res) => {
+    const row = await queryOne(
+      db,
+      "SELECT status, confidence_score, created_at, updated_at FROM user_face_encodings WHERE user_id=? LIMIT 1",
+      [req.userId]
+    );
+    if (!row) return res.json({ ok: true, registered: false });
+    return res.json({ ok: true, registered: row.status === "active", face: row });
+  }));
+
+  r.post("/auth/face/register", requireAuth, faceRateLimit("face_register"), requireFaceTransport, wrap(async (req, res) => {
+    const schema = z.object({
+      frames: z.array(z.string().min(20)).min(6).max(20),
+      challenge_token: z.string().min(16),
+    });
+    const body = schema.parse(req.body || {});
+
+    const tokenHash = sha256(body.challenge_token);
+    const challengeRow = await queryOne(
+      db,
+      "SELECT * FROM face_challenges WHERE user_id=? AND token_hash=? AND used_at IS NULL AND expires_at > NOW() ORDER BY id DESC LIMIT 1",
+      [req.userId, tokenHash]
+    );
+
+    if (!challengeRow) {
+      return res.status(401).json({ ok: false, error: "invalid_or_expired_challenge" });
+    }
+
+    const analyzed = await analyzeFrames(body.frames, challengeRow.challenge_type);
+    if (!analyzed.success) {
+      await exec(
+        db,
+        "INSERT INTO face_recognition_logs(user_id, attempt_type, challenge_requested, challenge_passed, liveness_status, anti_spoof_status, result, reason) VALUES(?,?,?,?,?,?,?,?)",
+        [
+          req.userId,
+          "register",
+          challengeRow.challenge_type,
+          0,
+          analyzed.error === "liveness_failed" ? "failed" : "unknown",
+          analyzed.error === "anti_spoof_failed" ? "failed" : "unknown",
+          "failure",
+          JSON.stringify({
+            error: analyzed.error,
+            reason: analyzed.reason,
+            details: analyzed.details || null,
+            metrics: getFaceEngineMetrics(),
+          }),
+        ]
+      );
+      return res.status(422).json({ ok: false, error: analyzed.error, reason: analyzed.reason });
+    }
+
+    const challengePassed = analyzed.challenge_passed === true;
+    const spoofOk = Number(analyzed.spoof_score || 0) >= FACE_SPOOF_MIN;
+    const qualityOk = Number(analyzed.quality_score || 0) >= FACE_QUALITY_MIN;
+    const livenessOk = Number(analyzed.liveness_score || 0) >= FACE_LIVENESS_MIN;
+
+    if (!challengePassed || !spoofOk || !qualityOk || !livenessOk) {
+      const failReason = {
+        challenge_passed: challengePassed,
+        spoof_score: Number(analyzed.spoof_score || 0),
+        quality_score: Number(analyzed.quality_score || 0),
+        liveness_score: Number(analyzed.liveness_score || 0),
+        policy: {
+          spoof_min: FACE_SPOOF_MIN,
+          quality_min: FACE_QUALITY_MIN,
+          liveness_min: FACE_LIVENESS_MIN,
+        },
+        challenge_reason: analyzed.challenge_reason || null,
+      };
+
+      await exec(
+        db,
+        "INSERT INTO face_recognition_logs(user_id, attempt_type, challenge_requested, challenge_passed, liveness_status, anti_spoof_status, result, reason) VALUES(?,?,?,?,?,?,?,?)",
+        [
+          req.userId,
+          "register",
+          challengeRow.challenge_type,
+          challengePassed ? 1 : 0,
+          livenessOk ? "passed" : "failed",
+          spoofOk ? "passed" : "failed",
+          "failure",
+          JSON.stringify(failReason),
+        ]
+      );
+
+      return res.status(422).json({
+        ok: false,
+        error: !challengePassed
+          ? "challenge_not_passed"
+          : !livenessOk
+            ? "liveness_failed"
+            : !spoofOk
+              ? "anti_spoof_failed"
+              : "low_quality",
+        analysis: failReason,
+      });
+    }
+
+    await exec(
+      db,
+      `INSERT INTO user_face_encodings(user_id, encoding_json, challenge_type, confidence_score, liveness_verified, anti_spoof_verified, status, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,NOW(),NOW())
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+         encoding_json=excluded.encoding_json,
+         challenge_type=excluded.challenge_type,
+         confidence_score=excluded.confidence_score,
+         liveness_verified=excluded.liveness_verified,
+         anti_spoof_verified=excluded.anti_spoof_verified,
+         status='active',
+         updated_at=NOW()`,
+      [
+        req.userId,
+        JSON.stringify(analyzed.encoding),
+        challengeRow.challenge_type,
+        Number(analyzed.confidence || 0.8),
+        1,
+        1,
+        "active",
+      ]
+    );
+
+    await exec(db, "UPDATE face_challenges SET used_at=NOW() WHERE id=?", [challengeRow.id]);
+
+    await exec(
+      db,
+      "INSERT INTO face_recognition_logs(user_id, attempt_type, challenge_requested, challenge_passed, liveness_status, anti_spoof_status, result, reason) VALUES(?,?,?,?,?,?,?,?)",
+      [
+        req.userId,
+        "register",
+        challengeRow.challenge_type,
+        1,
+        "passed",
+        "passed",
+        "success",
+        JSON.stringify({
+          registered: true,
+          liveness_score: Number(analyzed.liveness_score || 0),
+          spoof_score: Number(analyzed.spoof_score || 0),
+          quality_score: Number(analyzed.quality_score || 0),
+          challenge_reason: analyzed.challenge_reason || null,
+        }),
+      ]
+    );
+
+    saveDb();
+
+    res.json({
+      ok: true,
+      message: "face_registered",
+      confidence: analyzed.confidence,
+      challenge_passed: true,
+      liveness_score: Number(analyzed.liveness_score || 0),
+      spoof_score: Number(analyzed.spoof_score || 0),
+      quality_score: Number(analyzed.quality_score || 0),
+      frames_processed: analyzed.frames_processed,
+      unique_embeddings: analyzed.unique_embeddings,
+    });
+  }));
+
+  r.delete("/auth/face/register", requireAuth, wrap(async (req, res) => {
+    await exec(db, "DELETE FROM user_face_encodings WHERE user_id=?", [req.userId]);
+    await exec(
+      db,
+      "INSERT INTO face_recognition_logs(user_id, attempt_type, result, reason) VALUES(?,?,?,?)",
+      [req.userId, "register", "success", "face_registration_deleted"]
+    );
+    saveDb();
+    res.json({ ok: true, message: "face_registration_deleted" });
+  }));
+
+  r.post("/homes/:homeCode/doors/:deviceId/unlock-with-face", faceRateLimit("face_unlock"), requireFaceTransport, requireDeviceToken, wrap(async (req, res) => {
+    const schema = z.object({
+      image: z.string().min(20),
+      user_id: z.number().int().positive().optional(),
+    });
+    const body = schema.parse(req.body || {});
+    const homeCode = String(req.params.homeCode || "").trim().toUpperCase();
+    const deviceId = String(req.params.deviceId || "").trim().toLowerCase();
+
+    const home = await queryOne(db, "SELECT id, home_code FROM homes WHERE home_code=? LIMIT 1", [homeCode]);
+    if (!home) return res.status(404).json({ ok: false, error: "home_not_found" });
+
+    const usersWithFace = await queryAll(
+      db,
+      `SELECT u.id AS user_id, u.full_name, u.email, u.phone, ufe.encoding_json
+       FROM home_members hm
+       JOIN users u ON u.id = hm.user_id
+       JOIN user_face_encodings ufe ON ufe.user_id = u.id
+       WHERE hm.home_id=?
+         AND hm.is_active=1
+         AND hm.role IN ('owner','admin','resident')
+         AND ufe.status='active'`,
+      [home.id]
+    );
+
+    const candidates = body.user_id
+      ? usersWithFace.filter((u) => Number(u.user_id) === Number(body.user_id))
+      : usersWithFace;
+
+    if (!candidates.length) {
+      await exec(
+        db,
+        "INSERT INTO face_recognition_logs(home_id, device_id, attempt_type, result, reason) VALUES(?,?,?,?,?)",
+        [home.id, deviceId, "unlock_door", "failure", "no_face_registered"]
+      );
+      return res.status(404).json({ ok: false, error: "no_face_registered" });
+    }
+
+    let best = null;
+    for (const user of candidates) {
+      let stored;
+      try {
+        stored = JSON.parse(user.encoding_json || "[]");
+      } catch {
+        continue;
+      }
+      const result = await verifyImageAgainstEncoding(body.image, stored);
+      if (!result.success) continue;
+      if (!best || result.distance < best.distance) {
+        best = { ...result, user_id: user.user_id, full_name: user.full_name || user.email || user.phone || "user" };
+      }
+    }
+
+    if (!best) {
+      await exec(
+        db,
+        "INSERT INTO face_recognition_logs(home_id, device_id, attempt_type, result, reason) VALUES(?,?,?,?,?)",
+        [home.id, deviceId, "unlock_door", "failure", "face_verification_failed"]
+      );
+      return res.status(422).json({ ok: false, error: "face_verification_failed" });
+    }
+
+    if (!best.matched || Number(best.spoof_score || 0) < FACE_SPOOF_MIN || Number(best.quality_score || 0) < FACE_QUALITY_MIN) {
+      const rejectReason = {
+        insufficient_match: !best.matched,
+        spoof_score: Number(best.spoof_score || 0),
+        quality_score: Number(best.quality_score || 0),
+        spoof_min: FACE_SPOOF_MIN,
+        quality_min: FACE_QUALITY_MIN,
+      };
+      await exec(
+        db,
+        "INSERT INTO face_recognition_logs(user_id, home_id, device_id, attempt_type, distance, result, reason) VALUES(?,?,?,?,?,?,?)",
+        [best.user_id, home.id, deviceId, "unlock_door", best.distance, "failure", JSON.stringify(rejectReason)]
+      );
+      return res.status(401).json({
+        ok: false,
+        error: !best.matched ? "insufficient_match" : (Number(best.spoof_score || 0) < FACE_SPOOF_MIN ? "anti_spoof_failed" : "low_quality"),
+        distance: best.distance,
+        threshold: best.threshold,
+        spoof_score: Number(best.spoof_score || 0),
+        quality_score: Number(best.quality_score || 0),
+      });
+    }
+
+    mqttClient.publish(
+      `home/${home.home_code}/device/${deviceId}/cmd`,
+      JSON.stringify({ cmd: "UNLOCK_DOOR", value: 1, source: "face_recognition" }),
+      { qos: 1 }
+    );
+
+    await exec(
+      db,
+      "INSERT INTO face_recognition_logs(user_id, home_id, device_id, attempt_type, distance, result, reason) VALUES(?,?,?,?,?,?,?)",
+      [best.user_id, home.id, deviceId, "unlock_door", best.distance, "success", "face_match"]
+    );
+
+    await exec(
+      db,
+      "INSERT INTO events(home_id, device_id, type, payload) VALUES(?,?,?,?)",
+      [
+        home.id,
+        deviceId,
+        "door_unlocked_by_face",
+        JSON.stringify({ user_id: best.user_id, user_name: best.full_name, distance: best.distance, threshold: best.threshold }),
+      ]
+    );
+
+    saveDb();
+
+    return res.json({
+      ok: true,
+      result: "AUTHORIZED",
+      user_id: best.user_id,
+      user_name: best.full_name,
+      distance: best.distance,
+      threshold: best.threshold,
+      confidence: best.confidence,
+      spoof_score: Number(best.spoof_score || 0),
+      quality_score: Number(best.quality_score || 0),
+    });
+  }));
+
+  r.get("/homes/:homeId/face-logs", requireAuth, wrap(async (req, res) => {
+    const homeId = Number(req.params.homeId);
+    const role = await getHomeRole(homeId, req.userId);
+    if (!role || !["owner", "admin"].includes(role)) {
+      return res.status(403).json({ ok: false, error: "no_permission" });
+    }
+
+    const rows = await queryAll(
+      db,
+      `SELECT frl.*, u.full_name, u.email, u.phone
+       FROM face_recognition_logs frl
+       LEFT JOIN users u ON u.id = frl.user_id
+       WHERE frl.home_id=?
+       ORDER BY frl.id DESC
+       LIMIT 200`,
+      [homeId]
+    );
+
+    res.json({ ok: true, logs: rows, threshold: MATCH_DISTANCE_THRESHOLD });
+  }));
+
+  r.get("/face/metrics", requireAuth, wrap(async (_req, res) => {
+    const nodeMetrics = getFaceEngineMetrics();
+    let pythonMetrics = null;
+
+    try {
+      const pyUrl = (process.env.FACE_PYTHON_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
+      const upstream = await fetch(`${pyUrl}/metrics`, {
+        method: "GET",
+        signal: AbortSignal.timeout(3000),
+      });
+      if (upstream.ok) {
+        const body = await upstream.json();
+        pythonMetrics = body.metrics || body;
+      }
+    } catch {
+      pythonMetrics = null;
+    }
+
+    res.json({ ok: true, node: nodeMetrics, python: pythonMetrics });
+  }));
+
+  // Unified one-port chat endpoint: frontend calls /api/chat on same origin.
+  r.post("/chat", wrap(async (req, res) => {
+    const schema = z.object({
+      sessionId: z.string().optional(),
+      message: z.string().min(1),
+    });
+    const b = schema.parse(req.body || {});
+
+    try {
+      const upstream = await fetch(`${HOMIX_AI_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: b.sessionId || "web", message: b.message }),
+        signal: AbortSignal.timeout(180000),
+      });
+
+      const contentType = upstream.headers.get("content-type") || "application/json";
+      const text = await upstream.text();
+      res.status(upstream.status);
+      res.set("Content-Type", contentType);
+      return res.send(text);
+    } catch (err) {
+      console.error("Chat upstream unavailable:", err.message);
+      return res.json({
+        reply: "السيرفر الذكي غير متاح حالياً. حاول بعد قليل.",
+        fallback: true,
+      });
+    }
+  }));
+
   // ==================== Admin API ====================
 
   // House code generator: DZ-XXXX-XXXX
@@ -757,27 +1276,50 @@ module.exports = function routes({ db, mqttClient }) {
 
   const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || "dev_admin_secret_change_me";
 
-  function signAdminToken(username) {
-    return jwt.sign({ type: "admin", username }, ADMIN_JWT_SECRET, { expiresIn: "24h" });
+  function signAdminToken(payload) {
+    return jwt.sign({ type: "admin", ...payload }, ADMIN_JWT_SECRET, { expiresIn: "24h" });
   }
 
   function verifyAdminToken(token) {
     try {
-      const payload = jwt.verify(token, ADMIN_JWT_SECRET);
-      return payload?.type === "admin";
+      return jwt.verify(token, ADMIN_JWT_SECRET);
     } catch {
-      return false;
+      return null;
     }
   }
 
-  function requireAdminAuth(req, res, next) {
+  async function requireAdminAuth(req, res, next) {
     const auth = req.headers['authorization'];
     if (!auth || !auth.startsWith('Bearer ')) {
       return res.status(401).json({ success: false, error: 'unauthorized', message: 'غير مصرّح' });
     }
     const token = auth.replace('Bearer ', '');
-    if (!verifyAdminToken(token)) {
+    const payload = verifyAdminToken(token);
+    if (!payload || payload.type !== 'admin') {
       return res.status(401).json({ success: false, error: 'unauthorized', message: 'غير مصرّح' });
+    }
+
+    if (payload.kind === 'staff') {
+      const staff = await queryOne(db, "SELECT id, username, is_active, full_name, role FROM admin_staff WHERE id=?", [payload.staffId]);
+      if (!staff || staff.is_active !== 1) {
+        return res.status(401).json({ success: false, error: 'unauthorized', message: 'الحساب غير نشط' });
+      }
+      req.admin = { kind: 'staff', id: staff.id, username: staff.username, name: staff.full_name, role: staff.role };
+      return next();
+    }
+
+    req.admin = {
+      kind: 'super_admin',
+      username: payload.username || 'admin',
+      name: payload.name || 'المسؤول',
+      role: 'owner'
+    };
+    next();
+  }
+
+  function requireOwnerAdmin(req, res, next) {
+    if (req.admin?.kind !== 'super_admin') {
+      return res.status(403).json({ success: false, message: 'هذه الصلاحية متاحة للمسؤول الرئيسي فقط' });
     }
     next();
   }
@@ -785,12 +1327,33 @@ module.exports = function routes({ db, mqttClient }) {
   // Admin Login
   const adminLoginHandler = wrap(async (req, res) => {
     const { username, password } = req.body || {};
+
+    const staff = await queryOne(db, "SELECT * FROM admin_staff WHERE username=? LIMIT 1", [username]);
+    if (staff) {
+      if (staff.is_active !== 1) {
+        return res.status(403).json({ success: false, message: 'الحساب غير نشط' });
+      }
+      const ok = await verifyPassword(password || '', staff.password_hash || '');
+      if (!ok) {
+        return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+      }
+      await exec(db, "UPDATE admin_staff SET last_login_at=NOW() WHERE id=?", [staff.id]);
+      const token = signAdminToken({
+        kind: 'staff',
+        staffId: staff.id,
+        username: staff.username,
+        name: staff.full_name,
+        role: staff.role
+      });
+      return res.json({ success: true, token, admin: staff.full_name, role: staff.role, kind: 'staff' });
+    }
+
     const cfg = await queryOne(db, "SELECT * FROM admin_config WHERE username=? LIMIT 1", [username]);
     if (!cfg || cfg.password !== password) {
       return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
     }
-    const token = signAdminToken(cfg.username);
-    res.json({ success: true, token, admin: cfg.name });
+    const token = signAdminToken({ kind: 'super_admin', username: cfg.username, name: cfg.name, role: 'owner' });
+    res.json({ success: true, token, admin: cfg.name, role: 'owner', kind: 'super_admin' });
   });
 
   r.post("/admin/login", adminLoginHandler);
@@ -842,8 +1405,37 @@ module.exports = function routes({ db, mqttClient }) {
   r.put("/admin/orders/:id", requireAdminAuth, wrap(async (req, res) => {
     const id = Number(req.params.id);
     const b = req.body || {};
-    if (b.status) await exec(db, "UPDATE orders SET status=? WHERE id=?", [b.status, id]);
-    res.json({ success: true });
+    const order = await queryOne(db,
+      "SELECT o.*, c.email AS client_email, c.name AS client_name FROM orders o LEFT JOIN clients c ON c.id=o.client_id WHERE o.id=?",
+      [id]
+    );
+    if (!order) return res.status(404).json({ success: false, message: 'الطلب غير موجود' });
+
+    let mail = null;
+
+    if (b.status) {
+      await exec(db, "UPDATE orders SET status=? WHERE id=?", [b.status, id]);
+
+      if (b.status === 'approved') {
+        const email = (order.client_email || '').trim() || (order.contact_method === 'email' ? (order.contact || '').trim() : '');
+        if (email) {
+          const subject = 'تم قبول طلبكم لدى HomiX';
+          const customer = (order.client_name || '').trim();
+          const text = `مرحبا${customer ? ' ' + customer : ''},\n\nتم قبول طلبكم رقم ${order.id}. سنقوم بالتواصل معكم لتأكيد التفاصيل والمتابعة.\n\nشكرا لثقتكم.`;
+          const result = await sendEmail({ to: email, subject, text });
+          mail = {
+            ...result,
+            to: maskEmail(email)
+          };
+          console.log("[mail] order approved", { orderId: id, to: mail.to, sent: mail.sent, reason: mail.reason || null });
+        } else {
+          mail = { sent: false, reason: 'client_email_missing' };
+          console.log("[mail] order approved skipped (no recipient)", { orderId: id });
+        }
+      }
+    }
+
+    res.json({ success: true, mail });
   }));
 
   // Admin Houses
@@ -869,7 +1461,37 @@ module.exports = function routes({ db, mqttClient }) {
       [code, b.name || code, b.client_id ? Number(b.client_id) : null,
        b.wilaya || '', b.city || '', b.address || '', b.package_type || 'basic']);
     const house = await queryOne(db, "SELECT * FROM homes WHERE id=?", [result.lastId]);
-    res.json({ success: true, code, house: { ...house, code: house.home_code } });
+
+    // Notify client with the generated code (if email exists)
+    let mail = { sent: false, reason: 'client_email_missing' };
+
+    if (house.client_id) {
+      const client = await queryOne(db, "SELECT name, email FROM clients WHERE id=?", [house.client_id]);
+      const email = (client?.email || '').trim();
+      if (email) {
+        const subject = 'تم إنشاء كود منزلك في HomiX';
+        const customer = (client?.name || '').trim();
+        const text = `شكرا على ثقتك${customer ? ' ' + customer : ''}. تم إنشاء الكود الخاص بكم: ${code}\nاستخدم الكود لتفعيل المنزل في التطبيق.`;
+        const result = await sendEmail({ to: email, subject, text });
+        mail = {
+          ...result,
+          to: maskEmail(email)
+        };
+        console.log("[mail] house code generated", {
+          homeId: house.id,
+          homeCode: code,
+          to: mail.to,
+          sent: mail.sent,
+          reason: mail.reason || null
+        });
+      } else {
+        console.log("[mail] house code skipped (no recipient)", { homeId: house.id, homeCode: code });
+      }
+    } else {
+      mail = { sent: false, reason: 'client_missing' };
+    }
+
+    res.json({ success: true, code, house: { ...house, code: house.home_code }, mail });
   }));
 
   r.get("/admin/houses/:id", requireAdminAuth, wrap(async (req, res) => {
@@ -886,6 +1508,12 @@ module.exports = function routes({ db, mqttClient }) {
   r.put("/admin/houses/:id/activate", requireAdminAuth, wrap(async (req, res) => {
     const id = Number(req.params.id);
     await exec(db, "UPDATE homes SET activated=1, activated_at=NOW() WHERE id=?", [id]);
+    res.json({ success: true });
+  }));
+
+  r.put("/admin/houses/:id/deactivate", requireAdminAuth, wrap(async (req, res) => {
+    const id = Number(req.params.id);
+    await exec(db, "UPDATE homes SET activated=0, activated_at=NULL WHERE id=?", [id]);
     res.json({ success: true });
   }));
 
@@ -964,10 +1592,51 @@ module.exports = function routes({ db, mqttClient }) {
     res.json({ installations: rows.map(i => ({ ...i, house_code: i.house_code || '-', client_name: i.client_name || '-', address: i.address || '-' })) });
   }));
 
+  r.post("/admin/installations", requireAdminAuth, wrap(async (req, res) => {
+    const b = req.body || {};
+    const homeId = b.home_id ? Number(b.home_id) : null;
+    if (!homeId) {
+      return res.status(400).json({ success: false, message: 'المنزل مطلوب' });
+    }
+
+    const installDate = b.install_date ? new Date(b.install_date) : null;
+    if (!installDate || Number.isNaN(installDate.getTime())) {
+      return res.status(400).json({ success: false, message: 'تاريخ التركيب غير صالح' });
+    }
+
+    const result = await exec(db,
+      "INSERT INTO installations(home_id,status,install_date,notes) VALUES(?,?,?,?) RETURNING id",
+      [homeId, b.status || 'scheduled', installDate.toISOString(), b.notes || '']
+    );
+    const installation = await queryOne(db, "SELECT * FROM installations WHERE id=?", [result.lastId]);
+    res.json({ success: true, installation });
+  }));
+
   r.put("/admin/installations/:id", requireAdminAuth, wrap(async (req, res) => {
     const id = Number(req.params.id);
     const b = req.body || {};
-    await exec(db, "UPDATE installations SET status=? WHERE id=?", [b.status || 'completed', id]);
+    const existing = await queryOne(db, "SELECT * FROM installations WHERE id=?", [id]);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'موعد التركيب غير موجود' });
+    }
+
+    const nextStatus = b.status || existing.status || 'scheduled';
+    let nextInstallDate = existing.install_date;
+    if (b.install_date) {
+      const parsed = new Date(b.install_date);
+      if (Number.isNaN(parsed.getTime())) {
+        return res.status(400).json({ success: false, message: 'تاريخ التركيب غير صالح' });
+      }
+      nextInstallDate = parsed.toISOString();
+    }
+
+    const nextNotes = typeof b.notes === 'string' ? b.notes : existing.notes;
+    const completedAt = nextStatus === 'completed' ? new Date().toISOString() : existing.completed_at;
+
+    await exec(db,
+      "UPDATE installations SET status=?, install_date=?, notes=?, completed_at=? WHERE id=?",
+      [nextStatus, nextInstallDate, nextNotes, completedAt, id]
+    );
     res.json({ success: true });
   }));
 
@@ -983,6 +1652,81 @@ module.exports = function routes({ db, mqttClient }) {
       await exec(db, "UPDATE admin_config SET password=? WHERE username='admin'", [b.newPassword]);
     }
     res.json({ success: true });
+  }));
+
+  // Admin Accounts - app users
+  r.get("/admin/users", requireAdminAuth, wrap(async (req, res) => {
+    const rows = await queryAll(db,
+      `SELECT u.id, u.email, u.phone, u.full_name, u.family_role, u.created_at,
+              COALESCE(COUNT(hm.home_id), 0) AS homes_count,
+              MAX(CASE WHEN hm.is_active=1 THEN hm.role ELSE NULL END) AS active_home_role
+       FROM users u
+       LEFT JOIN home_members hm ON hm.user_id = u.id
+       GROUP BY u.id
+       ORDER BY u.id DESC`
+    );
+    res.json({ users: rows });
+  }));
+
+  // Admin Accounts - employees
+  r.get("/admin/employees", requireAdminAuth, wrap(async (req, res) => {
+    const employees = await queryAll(db,
+      "SELECT id, username, full_name, role, is_active, created_at, last_login_at FROM admin_staff ORDER BY id DESC"
+    );
+    res.json({ employees });
+  }));
+
+  r.post("/admin/employees", requireAdminAuth, requireOwnerAdmin, wrap(async (req, res) => {
+    const schema = z.object({
+      username: z.string().min(3),
+      full_name: z.string().min(2),
+      password: z.string().min(6),
+      role: z.enum(["staff", "manager"]).optional(),
+    });
+    const b = schema.parse(req.body || {});
+
+    const exists = await queryOne(db, "SELECT id FROM admin_staff WHERE username=? LIMIT 1", [b.username.trim()]);
+    if (exists) {
+      return res.status(409).json({ success: false, message: 'اسم المستخدم مستخدم مسبقاً' });
+    }
+
+    const password_hash = await hashPassword(b.password);
+    const result = await exec(db,
+      "INSERT INTO admin_staff(username, password_hash, full_name, role, is_active) VALUES(?,?,?,?,1) RETURNING id",
+      [b.username.trim(), password_hash, b.full_name.trim(), b.role || "staff"]
+    );
+    const employee = await queryOne(db,
+      "SELECT id, username, full_name, role, is_active, created_at, last_login_at FROM admin_staff WHERE id=?",
+      [result.lastId]
+    );
+    res.json({ success: true, employee });
+  }));
+
+  r.put("/admin/employees/:id", requireAdminAuth, requireOwnerAdmin, wrap(async (req, res) => {
+    const id = Number(req.params.id);
+    const b = req.body || {};
+    const existing = await queryOne(db, "SELECT * FROM admin_staff WHERE id=?", [id]);
+    if (!existing) return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
+
+    const nextName = b.full_name ? String(b.full_name).trim() : existing.full_name;
+    const nextRole = ["staff", "manager"].includes(b.role) ? b.role : existing.role;
+    const nextActive = typeof b.is_active === 'number' ? (b.is_active ? 1 : 0) : existing.is_active;
+
+    await exec(db,
+      "UPDATE admin_staff SET full_name=?, role=?, is_active=? WHERE id=?",
+      [nextName, nextRole, nextActive, id]
+    );
+
+    if (b.password) {
+      const password_hash = await hashPassword(String(b.password));
+      await exec(db, "UPDATE admin_staff SET password_hash=? WHERE id=?", [password_hash, id]);
+    }
+
+    const employee = await queryOne(db,
+      "SELECT id, username, full_name, role, is_active, created_at, last_login_at FROM admin_staff WHERE id=?",
+      [id]
+    );
+    res.json({ success: true, employee });
   }));
 
   // Public: Verify Home Code

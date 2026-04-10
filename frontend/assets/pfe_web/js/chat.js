@@ -1,5 +1,5 @@
 // ===== HomiX AI Chat — Connected to Ollama RAG Server =====
-const HOMIX_API = "http://localhost:3005/api/chat";
+const HOMIX_API = "/api/chat";
 const SESSION_ID = "web_" + Math.random().toString(36).slice(2, 10);
 let isSending = false;
 

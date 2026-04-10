@@ -4,112 +4,175 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HomiX — لوحة الإدارة</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
   <link rel="stylesheet" href="admin.css">
   <link rel="icon" type="image/svg+xml" href="../images/logo.svg">
 </head>
-<body>
+<body class="font-cairo bg-slate-950 text-slate-100">
   <!-- Mobile Menu Button -->
-  <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+  <button class="mobile-menu-btn fixed top-4 right-4 z-[101] h-11 w-11 rounded-lg border border-slate-700 bg-slate-900 text-slate-100" onclick="toggleSidebar()">☰</button>
 
-  <div class="admin-layout">
+  <div class="admin-layout min-h-screen">
     <!-- ===== Sidebar ===== -->
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">
+    <aside class="sidebar bg-slate-900/95 border-l border-slate-800" id="sidebar">
+      <div class="sidebar-brand border-b border-slate-800">
         <span>Homi<span class="highlight">X</span></span>
         <small>لوحة الإدارة</small>
       </div>
-      <nav class="sidebar-nav">
-        <div class="nav-section">الرئيسية</div>
-        <a href="#" class="active" data-section="dashboard" onclick="showSection('dashboard', this)">
-          <span class="nav-icon">📊</span> لوحة التحكم
+      <nav class="sidebar-nav px-3 py-4">
+        <div class="nav-section text-slate-400">الرئيسية</div>
+        <a href="#" class="active rounded-lg transition-colors" data-section="dashboard" onclick="showSection('dashboard', this)">
+          لوحة التحكم
         </a>
 
-        <div class="nav-section">إدارة</div>
-        <a href="#" data-section="orders" onclick="showSection('orders', this)">
-          <span class="nav-icon">📋</span> الطلبات
+        <div class="nav-section text-slate-400">إدارة</div>
+        <a href="#" class="rounded-lg transition-colors" data-section="orders" onclick="showSection('orders', this)">
+          الطلبات
           <span class="badge" id="pendingOrdersBadge">0</span>
         </a>
-        <a href="#" data-section="houses" onclick="showSection('houses', this)">
-          <span class="nav-icon">🏠</span> المنازل والأكواد
+        <a href="#" class="rounded-lg transition-colors" data-section="houses" onclick="showSection('houses', this)">
+          المنازل والأكواد
         </a>
-        <a href="#" data-section="clients" onclick="showSection('clients', this)">
-          <span class="nav-icon">👥</span> العملاء
-        </a>
-
-        <div class="nav-section">أقسام</div>
-        <a href="#" data-section="sales" onclick="showSection('sales', this)">
-          <span class="nav-icon">💰</span> المبيعات
-        </a>
-        <a href="#" data-section="support" onclick="showSection('support', this)">
-          <span class="nav-icon">🛠️</span> الدعم الفني
-        </a>
-        <a href="#" data-section="installation" onclick="showSection('installation', this)">
-          <span class="nav-icon">🔧</span> التركيب
+        <a href="#" class="rounded-lg transition-colors" data-section="clients" onclick="showSection('clients', this)">
+          العملاء
         </a>
 
-        <div class="nav-section">النظام</div>
-        <a href="#" data-section="settings" onclick="showSection('settings', this)">
-          <span class="nav-icon">⚙️</span> الإعدادات
+        <div class="nav-section text-slate-400">أقسام</div>
+        <a href="#" class="rounded-lg transition-colors" data-section="sales" onclick="showSection('sales', this)">
+          المبيعات
+        </a>
+        <a href="#" class="rounded-lg transition-colors" data-section="support" onclick="showSection('support', this)">
+          الدعم الفني
+        </a>
+        <a href="#" class="rounded-lg transition-colors" data-section="installation" onclick="showSection('installation', this)">
+          التركيب
+        </a>
+
+        <div class="nav-section text-slate-400">النظام</div>
+        <a href="#" class="rounded-lg transition-colors" data-section="accounts" onclick="showSection('accounts', this)">
+          الحسابات
+        </a>
+        <a href="#" class="rounded-lg transition-colors" data-section="settings" onclick="showSection('settings', this)">
+          الإعدادات
         </a>
       </nav>
-      <div class="sidebar-footer">
+      <div class="sidebar-footer border-t border-slate-800">
         <div class="admin-info">
-          <div class="admin-avatar">👤</div>
+          <div class="admin-avatar bg-slate-800 border border-slate-700">AD</div>
           <div>
             <div class="admin-name" id="adminNameDisplay">المسؤول</div>
             <div class="admin-role">مدير النظام</div>
           </div>
         </div>
-        <button class="logout-btn" onclick="logout()">🚪 تسجيل الخروج</button>
+        <button class="logout-btn w-full rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300" onclick="logout()">تسجيل الخروج</button>
       </div>
     </aside>
 
     <!-- ===== Main Content ===== -->
-    <main class="main-content">
-      <div class="top-bar">
-        <h1 id="pageTitle">📊 لوحة التحكم</h1>
-        <div class="date-display" id="currentDate"></div>
+    <main class="main-content bg-slate-950 min-h-screen">
+      <div class="top-bar mb-8 flex items-center justify-between">
+        <h1 id="pageTitle" class="text-2xl font-extrabold text-slate-100">لوحة التحكم</h1>
+        <div class="date-display text-slate-400" id="currentDate"></div>
       </div>
 
       <!-- ====== Dashboard Section ====== -->
       <div class="tab-content active" id="section-dashboard">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon">🏠</div>
+        <div class="stats-grid grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div class="stat-card rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+            <div class="stat-icon">H</div>
             <div class="stat-value" id="totalHouses">0</div>
             <div class="stat-label">إجمالي المنازل</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">✅</div>
+          <div class="stat-card rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+            <div class="stat-icon">A</div>
             <div class="stat-value" id="activeHouses">0</div>
             <div class="stat-label">منازل مفعّلة</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">📋</div>
+          <div class="stat-card rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+            <div class="stat-icon">O</div>
             <div class="stat-value" id="totalOrders">0</div>
             <div class="stat-label">إجمالي الطلبات</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">⏳</div>
+          <div class="stat-card rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+            <div class="stat-icon">P</div>
             <div class="stat-value" id="pendingOrders">0</div>
             <div class="stat-label">طلبات معلّقة</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">💰</div>
+          <div class="stat-card rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+            <div class="stat-icon">R</div>
             <div class="stat-value" id="totalRevenue">0</div>
             <div class="stat-label">إجمالي المبيعات (دج)</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">👥</div>
+          <div class="stat-card rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+            <div class="stat-icon">C</div>
             <div class="stat-value" id="totalClients">0</div>
             <div class="stat-label">إجمالي العملاء</div>
+          </div>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-title">نسبة قبول الطلبات</div>
+            <div class="metric-value" id="kpiApprovalRate">0%</div>
+            <div class="metric-sub">احتساب من إجمالي الطلبات المعالجة</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">نسبة تفعيل المنازل</div>
+            <div class="metric-value" id="kpiActivationRate">0%</div>
+            <div class="metric-sub">المنازل المفعّلة من إجمالي المنازل</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">تذاكر دعم مفتوحة</div>
+            <div class="metric-value" id="kpiOpenTickets">0</div>
+            <div class="metric-sub">الحالات التي تتطلب متابعة الآن</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">تركيبات مجدولة</div>
+            <div class="metric-value" id="kpiScheduledInstalls">0</div>
+            <div class="metric-sub">الزيارات المبرمجة غير المنجزة</div>
+          </div>
+        </div>
+
+        <div class="dashboard-panels-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>توزيع الباقات</h2>
+            </div>
+            <div class="panel-body">
+              <table class="data-table" id="packageStatsTable">
+                <thead>
+                  <tr><th>الميزات</th><th>عدد المنازل</th><th>النسبة</th><th>الانتشار</th></tr>
+                </thead>
+                <tbody id="packageStatsBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>آخر النشاطات</h2>
+            </div>
+            <div class="panel-body">
+              <div class="activity-list" id="activityFeed"></div>
+            </div>
           </div>
         </div>
 
         <!-- Recent Orders -->
         <div class="panel">
           <div class="panel-header">
-            <h2>📋 آخر الطلبات</h2>
+            <h2>آخر الطلبات</h2>
             <button class="btn btn-outline btn-sm" onclick="showSection('orders', document.querySelector('[data-section=orders]'))">عرض الكل</button>
           </div>
           <div class="panel-body">
@@ -133,7 +196,7 @@
         </div>
         <div class="panel">
           <div class="panel-header">
-            <h2>📋 إدارة الطلبات</h2>
+            <h2>إدارة الطلبات</h2>
             <div class="search-box">
               <input type="text" placeholder="بحث في الطلبات..." oninput="searchOrders(this.value)">
               <span class="search-icon">🔍</span>
@@ -142,12 +205,12 @@
           <div class="panel-body">
             <table class="data-table" id="ordersTable">
               <thead>
-                <tr><th>#</th><th>العميل</th><th>الهاتف</th><th>العنوان</th><th>الباقة</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>
+                <tr><th>#</th><th>العميل</th><th>الهاتف</th><th>العنوان</th><th>الميزات</th><th>الحالة</th><th>التاريخ</th><th>إجراءات</th></tr>
               </thead>
               <tbody></tbody>
             </table>
             <div class="empty-state" id="ordersEmpty" style="display:none;">
-              <div class="empty-icon">📭</div>
+              <div class="empty-icon">•</div>
               <p>لا توجد طلبات حالياً</p>
             </div>
           </div>
@@ -156,8 +219,31 @@
 
       <!-- ====== Houses Section ====== -->
       <div class="tab-content" id="section-houses">
+        <div class="stats-grid" style="margin-bottom:18px;">
+          <div class="stat-card">
+            <div class="stat-icon">TH</div>
+            <div class="stat-value" id="housesTotalCount">0</div>
+            <div class="stat-label">إجمالي المنازل</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">AH</div>
+            <div class="stat-value" id="housesActiveCount">0</div>
+            <div class="stat-label">منازل مفعلة</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">HS</div>
+            <div class="stat-value" id="housesSalesTotal">0</div>
+            <div class="stat-label">مبيعات المنازل (دج)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">HO</div>
+            <div class="stat-value" id="housesOpenSupport">0</div>
+            <div class="stat-label">دعم مفتوح للمنازل</div>
+          </div>
+        </div>
+
         <div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="openModal('generateCodeModal')">🏠 إنشاء كود منزل جديد</button>
+          <button class="btn btn-primary" onclick="openModal('generateCodeModal')">إنشاء كود منزل جديد</button>
           <div class="search-box" style="flex:1; min-width:200px;">
             <input type="text" placeholder="بحث بالكود أو اسم العميل..." oninput="searchHouses(this.value)">
             <span class="search-icon">🔍</span>
@@ -172,17 +258,17 @@
 
         <div class="panel">
           <div class="panel-header">
-            <h2>🏠 المنازل والأكواد</h2>
+            <h2>المنازل والأكواد</h2>
           </div>
           <div class="panel-body">
             <table class="data-table" id="housesTable">
               <thead>
-                <tr><th>الكود</th><th>العميل</th><th>العنوان</th><th>الباقة</th><th>الحالة</th><th>تاريخ التفعيل</th><th>إجراءات</th></tr>
+                <tr><th>الكود</th><th>العميل</th><th>العنوان</th><th>الميزات</th><th>الطلبات</th><th>المبيعات</th><th>الدعم</th><th>آخر نشاط</th><th>الحالة</th><th>تاريخ التفعيل</th><th>إجراءات</th></tr>
               </thead>
               <tbody></tbody>
             </table>
             <div class="empty-state" id="housesEmpty" style="display:none;">
-              <div class="empty-icon">🏡</div>
+              <div class="empty-icon">•</div>
               <p>لا توجد منازل مسجلة</p>
             </div>
           </div>
@@ -192,7 +278,7 @@
       <!-- ====== Clients Section ====== -->
       <div class="tab-content" id="section-clients">
         <div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="openModal('addClientModal')">👤 إضافة عميل جديد</button>
+          <button class="btn btn-primary" onclick="openModal('addClientModal')">إضافة عميل جديد</button>
           <div class="search-box" style="flex:1; min-width:200px;">
             <input type="text" placeholder="بحث بالاسم أو الهاتف..." oninput="searchClients(this.value)">
             <span class="search-icon">🔍</span>
@@ -201,12 +287,12 @@
 
         <div class="panel">
           <div class="panel-header">
-            <h2>👥 العملاء</h2>
+            <h2>العملاء</h2>
           </div>
           <div class="panel-body">
             <table class="data-table" id="clientsTable">
               <thead>
-                <tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>البريد</th><th>عدد المنازل</th><th>تاريخ التسجيل</th><th>إجراءات</th></tr>
+                <tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>البريد</th><th>المنازل</th><th>الطلبات</th><th>المبيعات (دج)</th><th>آخر طلب</th><th>تاريخ التسجيل</th><th>إجراءات</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -218,17 +304,17 @@
       <div class="tab-content" id="section-sales">
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-icon">💰</div>
+            <div class="stat-icon">S</div>
             <div class="stat-value" id="salesTotal">0</div>
             <div class="stat-label">إجمالي المبيعات (دج)</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon">📦</div>
+            <div class="stat-icon">N</div>
             <div class="stat-value" id="salesCount">0</div>
             <div class="stat-label">عدد المبيعات</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon">📊</div>
+            <div class="stat-icon">A</div>
             <div class="stat-value" id="salesAvg">0</div>
             <div class="stat-label">متوسط المبيعة (دج)</div>
           </div>
@@ -236,25 +322,38 @@
 
         <div class="panel">
           <div class="panel-header">
-            <h2>💰 سجل المبيعات</h2>
+            <h2>سجل المبيعات</h2>
             <button class="btn btn-primary btn-sm" onclick="openModal('addSaleModal')">+ إضافة مبيعة</button>
           </div>
           <div class="panel-body">
             <table class="data-table" id="salesTable">
               <thead>
-                <tr><th>#</th><th>العميل</th><th>كود المنزل</th><th>الباقة</th><th>المبلغ (دج)</th><th>التاريخ</th></tr>
+                <tr><th>#</th><th>العميل</th><th>كود المنزل</th><th>الميزات</th><th>المبلغ (دج)</th><th>التاريخ</th><th>إجراءات</th></tr>
               </thead>
               <tbody></tbody>
             </table>
+            <div class="empty-state" id="salesEmpty" style="display:none;">
+              <div class="empty-icon">•</div>
+              <p>لا توجد مبيعات مسجلة حالياً</p>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- ====== Support Section ====== -->
       <div class="tab-content" id="section-support">
+        <div class="section-tabs">
+          <button class="tab-btn active" onclick="filterSupport('all', this)">الكل</button>
+          <button class="tab-btn" onclick="filterSupport('open', this)">مفتوحة</button>
+          <button class="tab-btn" onclick="filterSupport('resolved', this)">محلولة</button>
+        </div>
         <div class="panel">
           <div class="panel-header">
-            <h2>🛠️ طلبات الدعم الفني</h2>
+            <h2>طلبات الدعم الفني</h2>
+            <div class="search-box">
+              <input type="text" placeholder="بحث في طلبات الدعم..." oninput="searchSupport(this.value)">
+              <span class="search-icon">🔍</span>
+            </div>
           </div>
           <div class="panel-body">
             <table class="data-table" id="supportTable">
@@ -264,7 +363,7 @@
               <tbody></tbody>
             </table>
             <div class="empty-state" id="supportEmpty">
-              <div class="empty-icon">✅</div>
+              <div class="empty-icon">•</div>
               <p>لا توجد طلبات دعم حالياً</p>
             </div>
           </div>
@@ -273,19 +372,33 @@
 
       <!-- ====== Installation Section ====== -->
       <div class="tab-content" id="section-installation">
+        <div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="openModal('addInstallModal')">إضافة موعد تركيب</button>
+          <div class="search-box" style="flex:1; min-width:220px;">
+            <input type="text" placeholder="بحث في مواعيد التركيب..." oninput="searchInstallation(this.value)">
+            <span class="search-icon">🔍</span>
+          </div>
+        </div>
+
+        <div class="section-tabs">
+          <button class="tab-btn active" onclick="filterInstallation('all', this)">الكل</button>
+          <button class="tab-btn" onclick="filterInstallation('scheduled', this)">مجدولة</button>
+          <button class="tab-btn" onclick="filterInstallation('completed', this)">مكتملة</button>
+        </div>
+
         <div class="panel">
           <div class="panel-header">
-            <h2>🔧 جدول التركيب</h2>
+            <h2>جدول التركيب</h2>
           </div>
           <div class="panel-body">
             <table class="data-table" id="installTable">
               <thead>
-                <tr><th>#</th><th>العميل</th><th>كود المنزل</th><th>العنوان</th><th>تاريخ التركيب</th><th>الحالة</th><th>إجراءات</th></tr>
+                <tr><th>#</th><th>العميل</th><th>كود المنزل</th><th>العنوان</th><th>موعد التركيب</th><th>الحالة</th><th>إجراءات</th></tr>
               </thead>
               <tbody></tbody>
             </table>
             <div class="empty-state" id="installEmpty">
-              <div class="empty-icon">🔧</div>
+              <div class="empty-icon">•</div>
               <p>لا توجد مواعيد تركيب حالياً</p>
             </div>
           </div>
@@ -293,10 +406,48 @@
       </div>
 
       <!-- ====== Settings Section ====== -->
+      <div class="tab-content" id="section-accounts">
+        <div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="openModal('addEmployeeModal')">إنشاء حساب موظف</button>
+          <div class="search-box" style="flex:1; min-width:220px;">
+            <input type="text" placeholder="بحث في حسابات المستخدمين..." oninput="searchAppUsers(this.value)">
+            <span class="search-icon">🔍</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>حسابات المستخدمين</h2>
+          </div>
+          <div class="panel-body">
+            <table class="data-table" id="usersTable">
+              <thead>
+                <tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>البريد</th><th>الدور النشط</th><th>عدد المنازل</th><th>تاريخ الإنشاء</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>حسابات الموظفين</h2>
+          </div>
+          <div class="panel-body">
+            <table class="data-table" id="employeesTable">
+              <thead>
+                <tr><th>#</th><th>اسم الدخول</th><th>الاسم الكامل</th><th>الدور</th><th>الحالة</th><th>آخر دخول</th><th>إجراءات</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="tab-content" id="section-settings">
         <div class="panel">
           <div class="panel-header">
-            <h2>⚙️ إعدادات النظام</h2>
+            <h2>إعدادات النظام</h2>
           </div>
           <div class="panel-body">
             <div class="form-group">
@@ -311,7 +462,7 @@
               <label>كلمة المرور الجديدة</label>
               <input type="password" class="form-control" id="settingsNewPass" placeholder="كلمة المرور الجديدة (اتركها فارغة إذا لا تريد التغيير)">
             </div>
-            <button class="btn btn-primary" onclick="saveSettings()">💾 حفظ الإعدادات</button>
+            <button class="btn btn-primary" onclick="saveSettings()">حفظ الإعدادات</button>
           </div>
         </div>
       </div>
@@ -323,16 +474,18 @@
   <!-- Generate House Code Modal -->
   <div class="modal-overlay" id="generateCodeModal">
     <div class="modal">
-      <h3>🏠 إنشاء كود منزل جديد</h3>
+      <h3>إنشاء كود منزل جديد</h3>
+      <div class="callout-info">سيتم إرسال الكود إلى بريد العميل تلقائياً إذا كان البريد مسجلاً.</div>
       <div class="form-group">
-        <label>العميل</label>
+        <label>العميل <span style="color:#fbbf24">*</span></label>
         <select class="form-control" id="houseClientSelect">
           <option value="">اختر العميل</option>
         </select>
+        <div class="form-hint">تأكد أن للعميل بريداً إلكترونياً حتى تصله رسالة الكود.</div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>الولاية</label>
+          <label>الولاية <span style="color:#fbbf24">*</span></label>
           <input type="text" class="form-control" id="houseWilaya" placeholder="الولاية">
         </div>
         <div class="form-group">
@@ -341,19 +494,19 @@
         </div>
       </div>
       <div class="form-group">
-        <label>العنوان التفصيلي</label>
+        <label>العنوان التفصيلي <span style="color:#fbbf24">*</span></label>
         <input type="text" class="form-control" id="houseAddress" placeholder="العنوان بالتفصيل">
       </div>
       <div class="form-group">
-        <label>الباقة</label>
+        <label>الميزات</label>
         <select class="form-control" id="housePackage">
-          <option value="basic">أساسية — Basic</option>
-          <option value="premium">متقدمة — Premium</option>
-          <option value="enterprise">شاملة — Enterprise</option>
+          <option value="basic">أساسية — تنبيهات فورية + تحكم أساسي</option>
+          <option value="premium">متقدمة — كاميرات + سجلات + تحكم موسع</option>
+          <option value="enterprise">شاملة — كل الميزات + إدارة متعددة</option>
         </select>
       </div>
       <div class="modal-actions">
-        <button class="btn btn-primary" onclick="generateHouseCode()">🔑 إنشاء الكود</button>
+        <button class="btn btn-primary" onclick="generateHouseCode()">إنشاء الكود</button>
         <button class="btn btn-outline" onclick="closeModal('generateCodeModal')">إلغاء</button>
       </div>
     </div>
@@ -362,7 +515,7 @@
   <!-- Add Client Modal -->
   <div class="modal-overlay" id="addClientModal">
     <div class="modal">
-      <h3>👤 إضافة عميل جديد</h3>
+      <h3>إضافة عميل جديد</h3>
       <div class="form-row">
         <div class="form-group">
           <label>الاسم الكامل</label>
@@ -382,7 +535,7 @@
         <input type="text" class="form-control" id="clientAddress" placeholder="العنوان">
       </div>
       <div class="modal-actions">
-        <button class="btn btn-primary" onclick="addClient()">✅ إضافة</button>
+        <button class="btn btn-primary" onclick="addClient()">إضافة</button>
         <button class="btn btn-outline" onclick="closeModal('addClientModal')">إلغاء</button>
       </div>
     </div>
@@ -391,7 +544,7 @@
   <!-- Add Sale Modal -->
   <div class="modal-overlay" id="addSaleModal">
     <div class="modal">
-      <h3>💰 إضافة مبيعة</h3>
+      <h3>إضافة مبيعة</h3>
       <div class="form-group">
         <label>كود المنزل</label>
         <select class="form-control" id="saleHouseSelect">
@@ -407,7 +560,7 @@
         <input type="text" class="form-control" id="saleNotes" placeholder="ملاحظات إضافية">
       </div>
       <div class="modal-actions">
-        <button class="btn btn-primary" onclick="addSale()">✅ تسجيل</button>
+        <button class="btn btn-primary" onclick="addSale()">تسجيل</button>
         <button class="btn btn-outline" onclick="closeModal('addSaleModal')">إلغاء</button>
       </div>
     </div>
@@ -416,10 +569,80 @@
   <!-- House Detail Modal -->
   <div class="modal-overlay" id="houseDetailModal">
     <div class="modal" style="max-width:650px;">
-      <h3>🏠 تفاصيل المنزل</h3>
+      <h3>تفاصيل المنزل</h3>
       <div id="houseDetailContent"></div>
       <div class="modal-actions">
         <button class="btn btn-outline" onclick="closeModal('houseDetailModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generic Details Modal -->
+  <div class="modal-overlay" id="genericDetailModal">
+    <div class="modal" style="max-width:720px;">
+      <h3 id="genericDetailTitle">تفاصيل السجل</h3>
+      <div id="genericDetailContent"></div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal('genericDetailModal')">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Employee Modal -->
+  <div class="modal-overlay" id="addEmployeeModal">
+    <div class="modal" style="max-width:560px;">
+      <h3>إنشاء حساب موظف</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>اسم المستخدم</label>
+          <input type="text" class="form-control" id="employeeUsername" placeholder="username">
+        </div>
+        <div class="form-group">
+          <label>الاسم الكامل</label>
+          <input type="text" class="form-control" id="employeeFullName" placeholder="الاسم الكامل">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>كلمة المرور</label>
+          <input type="password" class="form-control" id="employeePassword" placeholder="6 أحرف على الأقل">
+        </div>
+        <div class="form-group">
+          <label>الدور</label>
+          <select class="form-control" id="employeeRole">
+            <option value="staff">موظف</option>
+            <option value="manager">مدير فرعي</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="createEmployeeAccount()">إنشاء الحساب</button>
+        <button class="btn btn-outline" onclick="closeModal('addEmployeeModal')">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Installation Modal -->
+  <div class="modal-overlay" id="addInstallModal">
+    <div class="modal" style="max-width:560px;">
+      <h3>إضافة موعد تركيب</h3>
+      <div class="form-group">
+        <label>المنزل</label>
+        <select class="form-control" id="installHouseSelect">
+          <option value="">اختر المنزل</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>الموعد</label>
+        <input type="datetime-local" class="form-control" id="installDate">
+      </div>
+      <div class="form-group">
+        <label>ملاحظات</label>
+        <input type="text" class="form-control" id="installNotes" placeholder="ملاحظات إضافية">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="addInstallation()">حفظ الموعد</button>
+        <button class="btn btn-outline" onclick="closeModal('addInstallModal')">إلغاء</button>
       </div>
     </div>
   </div>

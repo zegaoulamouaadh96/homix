@@ -12,7 +12,15 @@ class ApiService {
   // للجهاز الحقيقي على نفس الشبكة: IP الكمبيوتر
   // للويب: localhost
   // عند استخدام جهاز فعلي مع ADB reverse استخدم localhost (adb reverse tcp:3000 tcp:3000)
-  static const String _baseUrl = 'http://5.135.79.223:3000/api';
+  static const String _baseUrl = String.fromEnvironment(
+    'HOMIX_API_BASE_URL',
+    defaultValue: 'http://5.135.79.223:3000/api',
+  );
+
+  static const String _faceDeviceToken = String.fromEnvironment(
+    'FACE_DEVICE_TOKEN',
+    defaultValue: 'dev-face-device-token',
+  );
 
   final Dio _dio = Dio(BaseOptions(
     baseUrl: _baseUrl,
@@ -489,6 +497,78 @@ class ApiService {
     }
   }
 
+  // ==================== Face Auth (Active Liveness) ====================
+
+  /// طلب تحدي حيوية (blink / turn_left / turn_right / smile)
+  Future<ApiResult> getFaceChallenge() async {
+    try {
+      final token = await getToken();
+      if (token == null) return ApiResult.error('not_authenticated');
+
+      final res = await _dio.get(
+        '/auth/face/challenge',
+        options: _authHeaders(token),
+      );
+      final data = Map<String, dynamic>.from(res.data as Map);
+      if (data['ok'] == true) return ApiResult.success(data);
+      return ApiResult.error(data['error'] ?? 'unknown_error');
+    } on DioException catch (e) {
+      return _handleDioError(e);
+    }
+  }
+
+  /// تسجيل الوجه عبر 10 Frames + challenge token
+  Future<ApiResult> registerFaceFrames({
+    required List<String> frames,
+    required String challengeToken,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) return ApiResult.error('not_authenticated');
+
+      final res = await _dio.post(
+        '/auth/face/register',
+        data: {
+          'frames': frames,
+          'challenge_token': challengeToken,
+        },
+        options: _authHeaders(token),
+      );
+      final data = Map<String, dynamic>.from(res.data as Map);
+      if (data['ok'] == true) return ApiResult.success(data);
+      return ApiResult.error(data['error'] ?? 'unknown_error');
+    } on DioException catch (e) {
+      return _handleDioError(e);
+    }
+  }
+
+  /// فتح الباب بالوجه (مسار الأجهزة)
+  Future<ApiResult> unlockDoorWithFace({
+    required String homeCode,
+    required String doorDeviceId,
+    required String imageBase64,
+    int? userId,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/homes/${homeCode.toUpperCase()}/doors/$doorDeviceId/unlock-with-face',
+        data: {
+          'image': imageBase64,
+          if (userId != null) 'user_id': userId,
+        },
+        options: Options(headers: {
+          'Authorization': 'Bearer $_faceDeviceToken',
+          'Content-Type': 'application/json',
+        }),
+      );
+      final data = Map<String, dynamic>.from(res.data as Map);
+      if (data['ok'] == true) return ApiResult.success(data);
+      return ApiResult.error(data['error'] ?? 'unknown_error');
+    } on DioException catch (e) {
+      return _handleDioError(e);
+    }
+  }
+
   /// تغيير كلمة المرور
   Future<ApiResult> changePassword({
     required String oldPassword,
@@ -608,6 +688,22 @@ class ApiResult {
         return 'انتهت مهلة الاتصال';
       case 'validation_error':
         return 'البيانات المدخلة غير صحيحة';
+      case 'invalid_or_expired_challenge':
+        return 'انتهت صلاحية التحدي، أعد المحاولة';
+      case 'challenge_not_passed':
+        return 'الحركة المطلوبة لم تُنفذ بشكل صحيح، أعد المحاولة واتبع التعليمات';
+      case 'liveness_failed':
+        return 'فشل التحقق من الحيوية، اتبع التعليمات بدقة';
+      case 'anti_spoof_failed':
+        return 'تم اكتشاف محاولة انتحال (صورة/شاشة)';
+      case 'low_quality':
+        return 'جودة الفيديو منخفضة، حسّن الإضاءة وثبّت الكاميرا';
+      case 'no_face_registered':
+        return 'لا يوجد وجه مسجل لهذا المنزل';
+      case 'insufficient_match':
+        return 'التطابق غير كاف لفتح الباب';
+      case 'invalid_device_token':
+        return 'رمز جهاز غير صالح';
       case 'phone_or_email_required':
         return 'يرجى إدخال البريد الإلكتروني أو رقم الهاتف';
       default:

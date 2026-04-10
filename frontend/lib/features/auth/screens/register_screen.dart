@@ -1,5 +1,8 @@
 import 'dart:io';
+import 'dart:convert';
+import 'dart:async';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -38,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   // Step 2 images
   final ImagePicker _picker = ImagePicker();
-  final List<File?> _faceImages = [null, null, null]; // 3 صور
+  List<String> _faceFrames = []; // preview/test frames only
   File? _profileImage;
 
   late AnimationController _formController;
@@ -115,22 +118,30 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   // ===================== Image Picking =====================
 
-  Future<void> _pickFaceImage(int index) async {
+  Future<File?> _captureImageWithPreview({String title = 'التقاط صورة'}) async {
     try {
-      final xfile = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
-      );
-      if (xfile == null) return;
+      final cams = await availableCameras();
+      if (cams.isEmpty) {
+        _showError('لا توجد كاميرا متاحة');
+        return null;
+      }
 
-      setState(() {
-        _faceImages[index] = File(xfile.path);
-        // إذا لم توجد صورة بروفايل، اجعل أول صورة وجه بروفايل افتراضيًا
-        _profileImage ??= _faceImages[index];
-      });
-      HapticFeedback.lightImpact();
+      final front = cams.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cams.first,
+      );
+
+      final path = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _CameraCaptureDialog(camera: front, title: title),
+      );
+
+      if (path == null || path.isEmpty) return null;
+      return File(path);
     } catch (_) {
-      _showError('تعذر فتح الكاميرا');
+      _showError('تعذر تشغيل معاينة الكاميرا');
+      return null;
     }
   }
 
@@ -149,13 +160,12 @@ class _RegisterScreenState extends State<RegisterScreen>
     } catch (e) {
       // إذا فشل المعرض، جرب الكاميرا
       try {
-        final xfile = await _picker.pickImage(
-          source: ImageSource.camera,
-          imageQuality: 85,
+        final file = await _captureImageWithPreview(
+          title: 'التقاط صورة الملف الشخصي',
         );
-        if (xfile == null) return;
+        if (file == null) return;
         setState(() {
-          _profileImage = File(xfile.path);
+          _profileImage = file;
         });
         HapticFeedback.lightImpact();
       } catch (_) {
@@ -165,16 +175,30 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 
   bool get _step2Complete {
-    final facesOk = _faceImages.every((f) => f != null);
     final profileOk = _profileImage != null;
-    return facesOk && profileOk;
+    return profileOk;
+  }
+
+  Future<void> _captureFaceFramesFlow() async {
+    final frames = await showDialog<List<String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _FaceFramesCaptureDialog(
+        title: 'اختبار الكاميرا',
+        instruction: 'حرّك وجهك قليلًا للتأكد من وضوح الكاميرا.',
+      ),
+    );
+
+    if (!mounted || frames == null || frames.length < 10) return;
+    setState(() => _faceFrames = frames);
+    HapticFeedback.mediumImpact();
   }
 
   // ===================== Registration Flow =====================
 
   Future<void> _finishRegister() async {
     if (!_step2Complete) {
-      _showError('يجب التقاط 3 صور للوجه وإضافة صورة بروفايل');
+      _showError('يجب إضافة صورة بروفايل للمتابعة');
       return;
     }
 
@@ -214,13 +238,53 @@ class _RegisterScreenState extends State<RegisterScreen>
       return;
     }
 
-    // 3) Upload 3 face images
-    final facePaths = _faceImages.map((f) => f!.path).toList();
-    final faces = await _api.uploadFaceImages(filePaths: facePaths);
-    if (!faces.ok) {
+    // 3) Get challenge and capture face frames with explicit instruction
+    final challenge = await _api.getFaceChallenge();
+    if (!challenge.ok) {
       await _api.logout();
       setState(() => _isLoading = false);
-      _showError('فشل رفع صور الوجه');
+      _showError(challenge.errorMessage);
+      return;
+    }
+
+    final challengeToken =
+        (challenge.data?['challenge_token'] ?? '').toString();
+    final instruction = (challenge.data?['instruction_ar'] ?? 'اتبع الحركة المطلوبة').toString();
+    final challengeType = (challenge.data?['challenge'] ?? '').toString();
+    if (challengeToken.isEmpty) {
+      await _api.logout();
+      setState(() => _isLoading = false);
+      _showError('فشل بدء تسجيل الوجه');
+      return;
+    }
+
+    final challengeFrames = await showDialog<List<String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _FaceFramesCaptureDialog(
+        title: 'تسجيل الوجه (تحقق حي)',
+        instruction: instruction,
+      ),
+    );
+
+    if (!mounted) return;
+    if (challengeFrames == null || challengeFrames.length < 10) {
+      await _api.logout();
+      setState(() => _isLoading = false);
+      _showError('لم يتم جمع فيديو كافٍ للتحقق من الحركة');
+      return;
+    }
+
+    setState(() => _faceFrames = challengeFrames);
+
+    final faceReg = await _api.registerFaceFrames(
+      frames: challengeFrames,
+      challengeToken: challengeToken,
+    );
+    if (!faceReg.ok) {
+      await _api.logout();
+      setState(() => _isLoading = false);
+      _showError('${faceReg.errorMessage} (${challengeType.isEmpty ? 'challenge' : challengeType})');
       return;
     }
 
@@ -542,19 +606,48 @@ class _RegisterScreenState extends State<RegisterScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'التقط 3 صور لوجهك (أوضاع مختلفة):\n'
-          '1) أمامي — 2) يمين — 3) يسار',
+          'سجّل وجهك عبر فيديو مباشر (10 لقطات) للتحقق الحيوي.',
           style: TextStyle(fontSize: 13.sp, color: AppColors.silver),
         ),
         SizedBox(height: 16.h),
-        Row(
-          children: [
-            Expanded(child: _faceBox(index: 0, label: 'أمامي')),
-            SizedBox(width: 12.w),
-            Expanded(child: _faceBox(index: 1, label: 'يمين')),
-            SizedBox(width: 12.w),
-            Expanded(child: _faceBox(index: 2, label: 'يسار')),
-          ],
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(14.w),
+          decoration: BoxDecoration(
+            color: AppColors.charcoal,
+            borderRadius: BorderRadius.circular(14.r),
+            border: Border.all(
+              color: _faceFrames.length >= 10
+                  ? AppColors.neonBlue
+                  : AppColors.darkGrey,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _faceFrames.length >= 10
+                    ? 'تم اختبار الكاميرا بنجاح (${_faceFrames.length}/10)'
+                    : 'اختياري: اختبر الكاميرا الآن قبل إنهاء التسجيل.',
+                style: TextStyle(
+                  color: _faceFrames.length >= 10
+                      ? AppColors.neonBlue
+                      : AppColors.silver,
+                  fontSize: 13.sp,
+                ),
+              ),
+              SizedBox(height: 10.h),
+              ElevatedButton.icon(
+                onPressed: _captureFaceFramesFlow,
+                icon: const Icon(Icons.videocam_outlined),
+                label: Text(
+                  _faceFrames.length >= 10
+                      ? 'إعادة اختبار الكاميرا'
+                      : 'اختبار الكاميرا',
+                ),
+              ),
+            ],
+          ),
         ),
         SizedBox(height: 20.h),
         Text(
@@ -581,46 +674,10 @@ class _RegisterScreenState extends State<RegisterScreen>
         SizedBox(height: 12.h),
         if (!_step2Complete)
           Text(
-            'يجب إكمال الصور الثلاث + صورة بروفايل للمتابعة.',
+            'يجب إضافة صورة بروفايل. تسجيل الحركة سيتم أثناء إنهاء الحساب مع تعليمات واضحة.',
             style: TextStyle(fontSize: 12.sp, color: AppColors.error),
           ),
       ],
-    );
-  }
-
-  Widget _faceBox({required int index, required String label}) {
-    final file = _faceImages[index];
-    return GestureDetector(
-      onTap: () => _pickFaceImage(index),
-      child: Container(
-        height: 96.h,
-        decoration: BoxDecoration(
-          color: AppColors.charcoal,
-          borderRadius: BorderRadius.circular(14.r),
-          border: Border.all(
-              color: file != null ? AppColors.neonBlue : AppColors.darkGrey),
-        ),
-        child: Center(
-          child: file == null
-              ? Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.camera_alt_outlined),
-                    SizedBox(height: 6.h),
-                    Text(label,
-                        style: TextStyle(
-                            fontSize: 12.sp, color: AppColors.silver)),
-                  ],
-                )
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(12.r),
-                  child: Image.file(file,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity),
-                ),
-        ),
-      ),
     );
   }
 
@@ -796,6 +853,324 @@ class _RegisterScreenState extends State<RegisterScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CameraCaptureDialog extends StatefulWidget {
+  final CameraDescription camera;
+  final String title;
+
+  const _CameraCaptureDialog({required this.camera, required this.title});
+
+  @override
+  State<_CameraCaptureDialog> createState() => _CameraCaptureDialogState();
+}
+
+class _CameraCaptureDialogState extends State<_CameraCaptureDialog> {
+  CameraController? _controller;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final ctrl = CameraController(
+        widget.camera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+      await ctrl.initialize();
+      if (!mounted) return;
+      setState(() => _controller = ctrl);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'فشل تشغيل الكاميرا: $e');
+    }
+  }
+
+  Future<void> _capture() async {
+    if (_busy || _controller == null || !_controller!.value.isInitialized) {
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final file = await _controller!.takePicture();
+      if (!mounted) return;
+      Navigator.of(context).pop(file.path);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'فشل الالتقاط: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.charcoal,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      child: Padding(
+        padding: EdgeInsets.all(14.w),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.title,
+              style: TextStyle(
+                color: AppColors.white,
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 10.h),
+            Container(
+              height: 340.h,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: AppColors.darkGrey),
+                color: AppColors.primaryBlack,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _error != null
+                  ? Center(
+                      child: Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style:
+                            TextStyle(color: AppColors.error, fontSize: 12.sp),
+                      ),
+                    )
+                  : (_controller != null && _controller!.value.isInitialized)
+                      ? CameraPreview(_controller!)
+                      : const Center(child: CircularProgressIndicator()),
+            ),
+            SizedBox(height: 12.h),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : () => Navigator.of(context).pop(),
+                    child: const Text('إلغاء'),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _busy ? null : _capture,
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: Text(_busy ? 'جارٍ الالتقاط...' : 'التقاط'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FaceFramesCaptureDialog extends StatefulWidget {
+  final String title;
+  final String instruction;
+
+  const _FaceFramesCaptureDialog({
+    required this.title,
+    required this.instruction,
+  });
+
+  @override
+  State<_FaceFramesCaptureDialog> createState() =>
+      _FaceFramesCaptureDialogState();
+}
+
+class _FaceFramesCaptureDialogState extends State<_FaceFramesCaptureDialog> {
+  CameraController? _controller;
+  Timer? _timer;
+  bool _capturing = false;
+  bool _busy = false;
+  String? _error;
+  final List<String> _frames = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cams = await availableCameras();
+      if (cams.isEmpty) {
+        setState(() => _error = 'لا توجد كاميرا متاحة');
+        return;
+      }
+      final front = cams.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cams.first,
+      );
+
+      final ctrl = CameraController(
+        front,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await ctrl.initialize();
+      if (!mounted) return;
+      setState(() => _controller = ctrl);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'فشل تشغيل الكاميرا: $e');
+    }
+  }
+
+  void _startCapture() {
+    if (_capturing ||
+        _controller == null ||
+        !_controller!.value.isInitialized) {
+      return;
+    }
+
+    setState(() {
+      _capturing = true;
+      _error = null;
+      _frames.clear();
+    });
+
+    _timer = Timer.periodic(const Duration(milliseconds: 450), (timer) async {
+      if (_busy || _controller == null) return;
+      _busy = true;
+      try {
+        final shot = await _controller!.takePicture();
+        final bytes = await shot.readAsBytes();
+        _frames.add('data:image/jpeg;base64,${base64Encode(bytes)}');
+
+        if (!mounted) return;
+        setState(() {});
+
+        if (_frames.length >= 10) {
+          timer.cancel();
+          if (!mounted) return;
+          Navigator.of(context).pop(_frames);
+        }
+      } catch (e) {
+        timer.cancel();
+        if (!mounted) return;
+        setState(() {
+          _capturing = false;
+          _error = 'فشل التقاط الإطارات: $e';
+        });
+      } finally {
+        _busy = false;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.charcoal,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      child: Padding(
+        padding: EdgeInsets.all(14.w),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.title,
+              style: TextStyle(
+                color: AppColors.white,
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 6.h),
+            Text(
+              widget.instruction,
+              style: TextStyle(color: AppColors.neonBlue, fontSize: 12.sp, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 4.h),
+            Text(
+              'نصيحة: اجعل وجهك داخل الإطار، بإضاءة جيدة، وتجنب الحركة السريعة.',
+              style: TextStyle(color: AppColors.silver, fontSize: 12.sp),
+            ),
+            SizedBox(height: 10.h),
+            Container(
+              height: 340.h,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: AppColors.darkGrey),
+                color: AppColors.primaryBlack,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _error != null
+                  ? Center(
+                      child: Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style:
+                            TextStyle(color: AppColors.error, fontSize: 12.sp),
+                      ),
+                    )
+                  : (_controller != null && _controller!.value.isInitialized)
+                      ? CameraPreview(_controller!)
+                      : const Center(child: CircularProgressIndicator()),
+            ),
+            SizedBox(height: 10.h),
+            Text(
+              'تم التقاط: ${_frames.length}/10',
+              style: TextStyle(color: AppColors.silver, fontSize: 12.sp),
+            ),
+            SizedBox(height: 12.h),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('إلغاء'),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _capturing ? null : _startCapture,
+                    icon: const Icon(Icons.videocam_outlined),
+                    label:
+                        Text(_capturing ? 'جارٍ الالتقاط...' : 'ابدأ الالتقاط'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

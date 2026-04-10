@@ -1,8 +1,9 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const http = require("http");
 const { openDb, initDb, saveDb, queryOne, exec } = require("./db");
-const { startMqttBroker, connectMqttClient } = require("./mqtt");
+const { startMqttBroker, startMqttWsBroker, connectMqttClient } = require("./mqtt");
 const buildRoutes = require("./routes");
 const { ZodError } = require("zod");
 
@@ -36,10 +37,44 @@ function toDeviceName(deviceId = "", category = "custom") {
   return `${labels[category] || "Device"} ${deviceId}`.trim();
 }
 
+function listenWithFallback(serverFactory, startPort, host = "0.0.0.0", maxAttempts = 5) {
+  return new Promise((resolve, reject) => {
+    let attempts = 0;
+
+    const tryPort = (port) => {
+      const server = serverFactory();
+      server.listen(port, host, () => resolve({ server, port }));
+      server.once("error", (err) => {
+        server.close(() => {
+          if (err?.code === "EADDRINUSE" && attempts < maxAttempts) {
+            attempts += 1;
+            const nextPort = port + 1;
+            console.warn(`HTTP port ${port} already in use. Trying ${nextPort}...`);
+            return tryPort(nextPort);
+          }
+          return reject(err);
+        });
+      });
+    };
+
+    tryPort(startPort);
+  });
+}
+
 async function main() {
   const app = express();
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "20mb" }));
+
+  let realMqttClient = null;
+  const mqttClient = {
+    publish: (...args) => {
+      if (realMqttClient?.connected) {
+        return realMqttClient.publish(...args);
+      }
+      console.warn("MQTT client not connected yet; publish dropped");
+    },
+  };
 
   // PostgreSQL
   const db = await openDb();
@@ -56,15 +91,51 @@ async function main() {
     );
   }
 
-  // Start embedded MQTT only if no external broker URL is provided
+  app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "../../web/index.html"));
+  });
+
+  app.use(express.static(path.join(__dirname, "../../web")));
+
+  app.get("/health", (req, res) => res.json({ ok: true }));
+
+  app.use("/api", buildRoutes({ db, mqttClient }));
+
+  // Global error handler
+  app.use((err, req, res, _next) => {
+    if (err instanceof ZodError) {
+      return res.status(400).json({ ok: false, error: "validation_error", details: err.errors });
+    }
+    // Unique constraint violation (PostgreSQL)
+    if (err.code === "23505" || /unique constraint/i.test(err.message || "")) {
+      return res.status(409).json({ ok: false, error: "duplicate_entry" });
+    }
+    console.error("Unhandled error:", err);
+    res.status(500).json({ ok: false, error: "internal_error" });
+  });
+
+  const port = Number(process.env.PORT || 3000);
+  const listener = await listenWithFallback(() => http.createServer(app), port, "0.0.0.0", 10);
+  startMqttWsBroker(listener.server, "/mqtt");
+
+  const enableTcpMqtt = process.env.MQTT_ENABLE_TCP === "true";
   const mqttPort = Number(process.env.MQTT_PORT || 1883);
-  const mqttUrl = process.env.MQTT_URL || `mqtt://localhost:${mqttPort}`;
-  if (!process.env.MQTT_URL) {
-    await startMqttBroker(mqttPort);
+  if (enableTcpMqtt) {
+    try {
+      await startMqttBroker(mqttPort);
+    } catch (err) {
+      if (err?.code === "EADDRINUSE") {
+        console.warn(`MQTT broker port ${mqttPort} already in use. Reusing existing broker.`);
+      } else {
+        throw err;
+      }
+    }
   }
 
+  const mqttUrl = process.env.MQTT_URL || `ws://localhost:${listener.port}/mqtt`;
+
   // Connect internal MQTT client
-  const mqttClient = connectMqttClient({
+  realMqttClient = connectMqttClient({
     mqttUrl,
     onTelemetry: async ({ homeCode, deviceId, payload }) => {
       try {
@@ -109,31 +180,8 @@ async function main() {
     }
   });
 
-  app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "../../web/index.html"));
-  });
-
-  app.use(express.static(path.join(__dirname, "../../web")));
-
-  app.get("/health", (req, res) => res.json({ ok: true }));
-
-  app.use("/api", buildRoutes({ db, mqttClient }));
-
-  // Global error handler
-  app.use((err, req, res, _next) => {
-    if (err instanceof ZodError) {
-      return res.status(400).json({ ok: false, error: "validation_error", details: err.errors });
-    }
-    // Unique constraint violation (PostgreSQL)
-    if (err.code === "23505" || /unique constraint/i.test(err.message || "")) {
-      return res.status(409).json({ ok: false, error: "duplicate_entry" });
-    }
-    console.error("Unhandled error:", err);
-    res.status(500).json({ ok: false, error: "internal_error" });
-  });
-
-  const port = Number(process.env.PORT || 3000);
-  app.listen(port, "0.0.0.0", () => console.log(`API on http://0.0.0.0:${port}`));
+  console.log(`API on http://0.0.0.0:${listener.port}`);
+  console.log(`MQTT over WS on ws://0.0.0.0:${listener.port}/mqtt`);
 }
 
 main().catch((e) => {
