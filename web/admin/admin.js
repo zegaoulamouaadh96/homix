@@ -295,6 +295,7 @@ function renderHouses(houses) {
       <td>${h.activated_at ? formatDate(h.activated_at) : '-'}</td>
       <td>
         <button class="btn btn-outline btn-sm" onclick="viewHouseDetail(${h.id})">تفاصيل</button>
+        <button class="btn btn-outline btn-sm" onclick="sendHouseCodeEmail(${h.id})">إرسال الكود</button>
         ${!h.activated
           ? `<button class="btn btn-success btn-sm" onclick="activateHouse(${h.id})">تفعيل</button>`
           : `<button class="btn btn-danger btn-sm" onclick="deactivateHouse(${h.id})">إلغاء التفعيل</button>`}
@@ -422,6 +423,34 @@ async function deactivateHouse(id) {
   } else {
     showToast(data.message || 'تعذر إلغاء التفعيل', 'error');
   }
+}
+
+async function sendHouseCodeEmail(id) {
+  const ok = confirm('هل تريد إرسال كود المنزل إلى البريد الإلكتروني للعميل؟');
+  if (!ok) return;
+
+  const data = await apiPost('/api/admin/houses/' + id + '/send-code', {});
+  if (!data.success) {
+    showToast(data.message || 'تعذر إرسال الكود', 'error');
+    return;
+  }
+
+  if (data.mail?.sent) {
+    showToast('تم إرسال كود المنزل إلى البريد الإلكتروني بنجاح');
+    return;
+  }
+
+  if (data.mail?.reason === 'client_missing' || data.mail?.reason === 'client_email_missing') {
+    showToast('لا يوجد بريد إلكتروني مرتبط بهذا المنزل', 'error');
+    return;
+  }
+
+  if (data.mail?.reason === 'mailer_not_configured') {
+    showToast('SMTP غير مضبوط في السيرفر', 'error');
+    return;
+  }
+
+  showToast('فشل إرسال الإيميل، تحقق من إعدادات SMTP', 'error');
 }
 
 async function viewHouseDetail(id) {

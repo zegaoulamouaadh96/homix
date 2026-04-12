@@ -1274,6 +1274,43 @@ module.exports = function routes({ db, mqttClient }) {
     return code;
   }
 
+  async function sendHouseCodeEmail({ homeId, homeCode, emailOverride }) {
+    const code = String(homeCode || "").trim().toUpperCase();
+    if (!code) return { sent: false, reason: "invalid_home_code" };
+
+    let clientName = "";
+    let email = String(emailOverride || "").trim();
+
+    if (!email) {
+      const row = await queryOne(
+        db,
+        `SELECT c.name AS client_name, c.email AS client_email
+         FROM homes h
+         LEFT JOIN clients c ON c.id = h.client_id
+         WHERE h.id=?`,
+        [homeId]
+      );
+
+      if (!row) return { sent: false, reason: "home_not_found" };
+      if (!row.client_name && !row.client_email) {
+        return { sent: false, reason: "client_missing" };
+      }
+
+      clientName = String(row.client_name || "").trim();
+      email = String(row.client_email || "").trim();
+      if (!email) return { sent: false, reason: "client_email_missing" };
+    }
+
+    const subject = "كود المنزل الخاص بك من HomiX";
+    const text = `مرحبا${clientName ? " " + clientName : ""},\n\nهذا هو كود منزلك: ${code}\n\nيمكنك استخدامه لربط المنزل داخل تطبيق HomiX.\nإذا لم تطلب هذا الإرسال، تجاهل هذه الرسالة.`;
+
+    const result = await sendEmail({ to: email, subject, text });
+    return {
+      ...result,
+      to: maskEmail(email),
+    };
+  }
+
   const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || "dev_admin_secret_change_me";
 
   function signAdminToken(payload) {
@@ -1462,36 +1499,45 @@ module.exports = function routes({ db, mqttClient }) {
        b.wilaya || '', b.city || '', b.address || '', b.package_type || 'basic']);
     const house = await queryOne(db, "SELECT * FROM homes WHERE id=?", [result.lastId]);
 
-    // Notify client with the generated code (if email exists)
-    let mail = { sent: false, reason: 'client_email_missing' };
-
-    if (house.client_id) {
-      const client = await queryOne(db, "SELECT name, email FROM clients WHERE id=?", [house.client_id]);
-      const email = (client?.email || '').trim();
-      if (email) {
-        const subject = 'تم إنشاء كود منزلك في HomiX';
-        const customer = (client?.name || '').trim();
-        const text = `شكرا على ثقتك${customer ? ' ' + customer : ''}. تم إنشاء الكود الخاص بكم: ${code}\nاستخدم الكود لتفعيل المنزل في التطبيق.`;
-        const result = await sendEmail({ to: email, subject, text });
-        mail = {
-          ...result,
-          to: maskEmail(email)
-        };
-        console.log("[mail] house code generated", {
-          homeId: house.id,
-          homeCode: code,
-          to: mail.to,
-          sent: mail.sent,
-          reason: mail.reason || null
-        });
-      } else {
-        console.log("[mail] house code skipped (no recipient)", { homeId: house.id, homeCode: code });
-      }
-    } else {
-      mail = { sent: false, reason: 'client_missing' };
-    }
+    const mail = await sendHouseCodeEmail({ homeId: house.id, homeCode: code });
+    console.log("[mail] house code generated", {
+      homeId: house.id,
+      homeCode: code,
+      to: mail.to || null,
+      sent: mail.sent,
+      reason: mail.reason || null,
+    });
 
     res.json({ success: true, code, house: { ...house, code: house.home_code }, mail });
+  }));
+
+  r.post("/admin/houses/:id/send-code", requireAdminAuth, wrap(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ success: false, message: "معرف المنزل غير صالح" });
+    }
+
+    const h = await queryOne(db, "SELECT id, home_code FROM homes WHERE id=?", [id]);
+    if (!h) return res.status(404).json({ success: false, message: "المنزل غير موجود" });
+
+    const schema = z.object({ email: z.string().email().optional() });
+    const body = schema.parse(req.body || {});
+
+    const mail = await sendHouseCodeEmail({
+      homeId: h.id,
+      homeCode: h.home_code,
+      emailOverride: body.email,
+    });
+
+    console.log("[mail] house code resend", {
+      homeId: h.id,
+      homeCode: h.home_code,
+      to: mail.to || null,
+      sent: mail.sent,
+      reason: mail.reason || null,
+    });
+
+    res.json({ success: true, code: h.home_code, mail });
   }));
 
   r.get("/admin/houses/:id", requireAdminAuth, wrap(async (req, res) => {
