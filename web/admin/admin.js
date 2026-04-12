@@ -426,10 +426,29 @@ async function deactivateHouse(id) {
 }
 
 async function sendHouseCodeEmail(id) {
-  const ok = confirm('هل تريد إرسال كود المنزل إلى البريد الإلكتروني للعميل؟');
-  if (!ok) return;
+  const data = await apiGet('/api/admin/houses/' + id);
+  const h = data.house;
+  if (!h) {
+    showToast('لم يتم العثور على المنزل', 'error');
+    return;
+  }
 
-  const data = await apiPost('/api/admin/houses/' + id + '/send-code', {});
+  const clientEmail = (h.client_email || '').trim() || '';
+  document.getElementById('sendCodeHouseId').value = id;
+  document.getElementById('sendCodeHouseName').value = getHouseCode(h) + ' - ' + (h.client_name || 'بدون اسم عميل');
+  document.getElementById('sendCodeEmail').value = clientEmail;
+  document.getElementById('sendCodeEmail').placeholder = clientEmail ? 'اترك فارغاً لاستخدام البريد الموجود' : 'ادخل البريد الإلكتروني';
+
+  openModal('sendCodeEmailModal');
+}
+
+async function confirmSendCodeEmail() {
+  const houseId = document.getElementById('sendCodeHouseId').value;
+  const emailInput = document.getElementById('sendCodeEmail').value.trim();
+
+  const payload = emailInput ? { email: emailInput } : {};
+
+  const data = await apiPost('/api/admin/houses/' + houseId + '/send-code', payload);
   if (!data.success) {
     showToast(data.message || 'تعذر إرسال الكود', 'error');
     return;
@@ -437,11 +456,12 @@ async function sendHouseCodeEmail(id) {
 
   if (data.mail?.sent) {
     showToast('تم إرسال كود المنزل إلى البريد الإلكتروني بنجاح');
+    closeModal('sendCodeEmailModal');
     return;
   }
 
   if (data.mail?.reason === 'client_missing' || data.mail?.reason === 'client_email_missing') {
-    showToast('لا يوجد بريد إلكتروني مرتبط بهذا المنزل', 'error');
+    showToast('لا يوجد بريد إلكتروني، يرجى إدخال ايميل صحيح', 'error');
     return;
   }
 
@@ -450,7 +470,7 @@ async function sendHouseCodeEmail(id) {
     return;
   }
 
-  showToast('فشل إرسال الإيميل، تحقق من إعدادات SMTP', 'error');
+  showToast('فشل إرسال الإيميل، تحقق من صحة البريد الإلكتروني', 'error');
 }
 
 async function viewHouseDetail(id) {

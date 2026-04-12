@@ -647,6 +647,27 @@
     </div>
   </div>
 
+  <!-- Send Code Email Modal -->
+  <div class="modal-overlay" id="sendCodeEmailModal">
+    <div class="modal" style="max-width:500px;">
+      <h3>إرسال كود المنزل</h3>
+      <div class="form-group">
+        <label>المنزل</label>
+        <input type="text" class="form-control" id="sendCodeHouseName" readonly style="background:#1a1a1a; cursor:not-allowed;">
+      </div>
+      <div class="form-group">
+        <label>البريد الإلكتروني للعميل</label>
+        <input type="email" class="form-control" id="sendCodeEmail" placeholder="ادخل البريد الإلكتروني">
+        <div class="form-hint">اترك فارغاً لاستخدام بريد العميل المسجل، أو ادخل بريداً بديلاً.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="confirmSendCodeEmail()">إرسال الكود</button>
+        <button class="btn btn-outline" onclick="closeModal('sendCodeEmailModal')">إلغاء</button>
+      </div>
+    </div>
+  </div>
+  <input type="hidden" id="sendCodeHouseId">
+
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 

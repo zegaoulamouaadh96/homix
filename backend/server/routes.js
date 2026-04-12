@@ -1286,7 +1286,7 @@ module.exports = function routes({ db, mqttClient }) {
         db,
         `SELECT c.name AS client_name, c.email AS client_email
          FROM homes h
-         LEFT JOIN clients c ON c.id = h.client_id
+         LEFT JOIN clients c ON c.id = h.client_id 
          WHERE h.id=?`,
         [homeId]
       );
@@ -1543,7 +1543,7 @@ module.exports = function routes({ db, mqttClient }) {
   r.get("/admin/houses/:id", requireAdminAuth, wrap(async (req, res) => {
     const id = Number(req.params.id);
     const h = await queryOne(db,
-      `SELECT h.*, c.name AS client_name, c.phone AS client_phone
+      `SELECT h.*, c.name AS client_name, c.phone AS client_phone, c.email AS client_email
        FROM homes h LEFT JOIN clients c ON c.id = h.client_id WHERE h.id=?`, [id]);
     if (!h) return res.status(404).json({ success: false, message: 'المنزل غير موجود' });
     const sales_list = await queryAll(db, "SELECT * FROM sales WHERE home_id=?", [id]);
