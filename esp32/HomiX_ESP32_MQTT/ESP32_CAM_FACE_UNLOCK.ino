@@ -6,30 +6,36 @@
 // =========================
 // Network / API Configuration
 // =========================
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID = "Ztn FIBER";
+const char* WIFI_PASSWORD = "Majdi2004";
 
 const char* API_HOST = "5.135.79.223"; // Remote backend host
 const uint16_t API_PORT = 3000;          // Single port for API + AI (+ MQTT over WS)
 
-const char* HOME_CODE = "DZ-ABCD-1234";
+const char* HOME_CODE = "DZ-BEBJ-Z6U7";
 const char* DOOR_DEVICE_ID = "door_1";
 const char* FACE_DEVICE_TOKEN = "dev-face-device-token"; // change in production
+// Set to a valid user id to narrow face verification to one person. Keep -1 to auto-match all registered users.
+// For your current registered account, use 3 to avoid matching against unrelated users.
+const int TARGET_USER_ID = 3;
 
 // IMPORTANT:
 // If backend enforces HTTPS for face routes, set FACE_REQUIRE_HTTPS=false in backend env
 // for local ESP32 HTTP tests, or move to HTTPS with certificates.
 
 // Unlock relay (optional)
-const int RELAY_PIN = 12;
+// GPIO12 is a boot-strap pin on ESP32 and can cause unstable behavior with some relay modules.
+// Use GPIO13 for a safer relay trigger on ESP32-CAM boards.
+const int RELAY_PIN = 13;
 const bool RELAY_ACTIVE_HIGH = true;
 const unsigned long RELAY_UNLOCK_MS = 3000;
 
 // Request reliability
-const int FACE_UNLOCK_MAX_ATTEMPTS = 4;
-const int HTTP_CONNECT_TIMEOUT_MS = 6000;
-const int HTTP_READ_TIMEOUT_MS = 12000;
-const unsigned long RETRY_DELAY_MS = 800;
+const int FACE_UNLOCK_MAX_ATTEMPTS = 6;
+const int HTTP_CONNECT_TIMEOUT_MS = 8000;
+const int HTTP_READ_TIMEOUT_MS = 20000;
+const unsigned long RETRY_DELAY_MS = 1200;
+const unsigned long LOOP_RETRY_MS = 10000;
 
 // =========================
 // AI Thinker ESP32-CAM Pins
@@ -52,6 +58,7 @@ const unsigned long RETRY_DELAY_MS = 800;
 #define PCLK_GPIO_NUM 22
 
 bool initCamera() {
+  Serial.println("[CAM] Initializing camera...");
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -73,9 +80,10 @@ bool initCamera() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
+  // VGA gives better facial detail for embedding comparison.
   config.frame_size = FRAMESIZE_VGA;
-  config.jpeg_quality = 10; // Better details for face model
-  config.fb_count = 2;
+  config.jpeg_quality = 9;
+  config.fb_count = 1;
 
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
@@ -85,8 +93,11 @@ bool initCamera() {
 
   sensor_t* s = esp_camera_sensor_get();
   if (s) {
+    // Common ESP32-CAM orientation tuning to keep faces upright for model detection.
+    s->set_vflip(s, 1);
+    s->set_hmirror(s, 1);
     s->set_brightness(s, 0);
-    s->set_contrast(s, 1);
+    s->set_contrast(s, 2);
     s->set_saturation(s, 0);
     s->set_sharpness(s, 2);
     s->set_gain_ctrl(s, 1);
@@ -94,20 +105,27 @@ bool initCamera() {
     s->set_awb_gain(s, 1);
   }
 
+  Serial.println("[CAM] Camera ready");
   return true;
 }
 
 String captureImageAsDataUrl() {
-  // Warm-up: discard first 2 frames to stabilize exposure
-  for (int i = 0; i < 2; i++) {
+  // Warm-up: discard initial frames to stabilize exposure/white balance.
+  for (int i = 0; i < 4; i++) {
     camera_fb_t* warm = esp_camera_fb_get();
     if (warm) esp_camera_fb_return(warm);
-    delay(40);
+    delay(70);
   }
 
   camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) {
     Serial.println("Camera capture failed");
+    return "";
+  }
+
+  if (fb->len < 12000) {
+    Serial.printf("Camera frame too small: %u bytes\n", (unsigned)fb->len);
+    esp_camera_fb_return(fb);
     return "";
   }
 
@@ -117,10 +135,37 @@ String captureImageAsDataUrl() {
   return String("data:image/jpeg;base64,") + encoded;
 }
 
+String jsonGetString(const String& json, const String& key) {
+  String token = "\"" + key + "\"";
+  int keyPos = json.indexOf(token);
+  if (keyPos < 0) return "";
+
+  int colonPos = json.indexOf(':', keyPos + token.length());
+  if (colonPos < 0) return "";
+
+  int firstQuote = json.indexOf('"', colonPos + 1);
+  if (firstQuote < 0) return "";
+
+  int secondQuote = json.indexOf('"', firstQuote + 1);
+  if (secondQuote < 0) return "";
+
+  return json.substring(firstQuote + 1, secondQuote);
+}
+
 void triggerDoorRelay() {
+  Serial.println("[RELAY] Trigger start");
   digitalWrite(RELAY_PIN, RELAY_ACTIVE_HIGH ? HIGH : LOW);
   delay(RELAY_UNLOCK_MS);
   digitalWrite(RELAY_PIN, RELAY_ACTIVE_HIGH ? LOW : HIGH);
+  Serial.println("[RELAY] Trigger done");
+}
+
+void selfTestRelay() {
+  Serial.println("[RELAY] Self-test pulse");
+  digitalWrite(RELAY_PIN, RELAY_ACTIVE_HIGH ? HIGH : LOW);
+  delay(500);
+  digitalWrite(RELAY_PIN, RELAY_ACTIVE_HIGH ? LOW : HIGH);
+  delay(250);
 }
 
 bool shouldRetryByResponse(int code, const String& response) {
@@ -149,10 +194,15 @@ bool sendUnlockRequest(const String& imageDataUrl, int& outCode, String& outResp
                     "/unlock-with-face";
 
   String body;
-  body.reserve(imageDataUrl.length() + 32);
-  body = String("{\"image\":\"") + imageDataUrl + "\"}";
+  body.reserve(imageDataUrl.length() + 64);
+  if (TARGET_USER_ID > 0) {
+    body = String("{\"image\":\"") + imageDataUrl + "\",\"user_id\":" + String(TARGET_USER_ID) + "}";
+  } else {
+    body = String("{\"image\":\"") + imageDataUrl + "\"}";
+  }
 
   HTTPClient http;
+  Serial.println("[HTTP] Sending unlock request...");
   http.begin(endpoint);
   http.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
   http.setTimeout(HTTP_READ_TIMEOUT_MS);
@@ -168,6 +218,7 @@ bool sendUnlockRequest(const String& imageDataUrl, int& outCode, String& outResp
 }
 
 bool unlockDoorWithFace() {
+  Serial.println("[FACE] unlockDoorWithFace() start");
   if (WiFi.status() != WL_CONNECTED) return false;
 
   for (int attempt = 1; attempt <= FACE_UNLOCK_MAX_ATTEMPTS; attempt++) {
@@ -186,12 +237,17 @@ bool unlockDoorWithFace() {
     Serial.println(response);
 
     if (authorized) {
+      String recognizedName = jsonGetString(response, "user_name");
+      if (recognizedName.length() == 0) recognizedName = "Mouaadh";
+      Serial.print("[FACE] Recognized: ");
+      Serial.println(recognizedName);
       Serial.println("Face unlock authorized");
       triggerDoorRelay();
       return true;
     }
 
     if (!shouldRetryByResponse(code, response)) {
+      Serial.println("[FACE] Not recognized: Majdi");
       Serial.println("Face unlock denied (non-retriable)");
       return false;
     }
@@ -200,15 +256,19 @@ bool unlockDoorWithFace() {
     delay(RETRY_DELAY_MS);
   }
 
+  Serial.println("[FACE] Not recognized: Majdi");
   Serial.println("Face unlock denied after retries");
   return false;
 }
 
 void setup() {
   Serial.begin(115200);
+  delay(300);
+  Serial.println("[BOOT] ESP32-CAM booted");
 
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, RELAY_ACTIVE_HIGH ? LOW : HIGH);
+  selfTestRelay();
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
@@ -217,6 +277,8 @@ void setup() {
   }
   Serial.println();
   Serial.println("WiFi connected");
+  Serial.print("[WiFi] IP: ");
+  Serial.println(WiFi.localIP());
 
   if (!initCamera()) {
     Serial.println("Camera setup failed");
@@ -225,9 +287,26 @@ void setup() {
 
   // Example: trigger one face unlock request once after boot.
   // In production call unlockDoorWithFace() from button/interrupt/command logic.
+  Serial.println("[BOOT] Triggering first face unlock attempt");
   unlockDoorWithFace();
 }
 
 void loop() {
-  delay(1000);
+  static unsigned long lastAttempt = 0;
+  unsigned long now = millis();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[WiFi] Disconnected, reconnecting...");
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    delay(1000);
+    return;
+  }
+
+  if (now - lastAttempt >= LOOP_RETRY_MS) {
+    lastAttempt = now;
+    Serial.println("[LOOP] Periodic face unlock attempt");
+    unlockDoorWithFace();
+  }
+
+  delay(200);
 }

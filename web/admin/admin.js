@@ -590,11 +590,16 @@ function populateClientSelects() {
 async function addClient() {
   const name = document.getElementById('clientName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
-  const email = document.getElementById('clientEmail').value.trim();
+  const email = document.getElementById('clientEmail').value.trim().toLowerCase();
   const address = document.getElementById('clientAddress').value.trim();
 
-  if (!name || !phone) {
-    showToast('يرجى إدخال الاسم ورقم الهاتف', 'error');
+  if (!name || !phone || !email) {
+    showToast('يرجى إدخال الاسم ورقم الهاتف والبريد الإلكتروني', 'error');
+    return;
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    showToast('صيغة البريد الإلكتروني غير صحيحة', 'error');
     return;
   }
 

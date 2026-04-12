@@ -1,0 +1,15 @@
+[Unit]
+Description=Homix AI Face Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/PFE/backend/ai
+EnvironmentFile=/opt/PFE/tools/linux/homix.env
+ExecStart=/opt/PFE/backend/ai/.venv/bin/python /opt/PFE/backend/ai/app.py
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target

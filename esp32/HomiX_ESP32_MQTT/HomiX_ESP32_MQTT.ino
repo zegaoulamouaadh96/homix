@@ -7,8 +7,8 @@
 // =========================
 // User Configuration
 // =========================
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID = "Ztn FIBER";
+const char* WIFI_PASSWORD = "Majdi2004";
 
 const char* MQTT_HOST = "5.135.79.223";
 const uint16_t MQTT_PORT = 1883;
@@ -147,8 +147,11 @@ void publishCameraTelemetry() {
 
 void publishSensorTelemetry(size_t index, const String& source) {
   if (index >= SENSOR_COUNT) return;
+  bool triggered = sensors[index].active && sensors[index].armed;
   String payload =
       String("{\"online\":true,\"type\":\"seismic\",\"active\":") + boolJson(sensors[index].active) +
+      ",\"triggered\":" + boolJson(triggered) +
+      ",\"motion\":" + boolJson(triggered) +
       ",\"armed\":" + boolJson(sensors[index].armed) +
       ",\"sensor_index\":" + String(index + 1) +
       ",\"source\":\"" + source +
@@ -452,7 +455,7 @@ void handleSensors() {
       publishSensorTelemetry(i, "edge");
 
       if (active && sensors[i].armed) {
-        publishEvent(sensors[i].deviceId, "seismic_triggered", String("sensor_") + String(i + 1));
+        publishEvent(sensors[i].deviceId, "seismic", String("sensor_") + String(i + 1) + "_triggered");
       } else if (!active && sensors[i].armed) {
         publishEvent(sensors[i].deviceId, "seismic_cleared", String("sensor_") + String(i + 1));
       }
@@ -466,7 +469,7 @@ void handleSensors() {
       lastEarthquakeMs = now;
       earthquakeFlashActive = true;
       earthquakeFlashUntilMs = now + EARTHQUAKE_FLASH_MS;
-      publishEvent(SEISMIC_HUB_DEVICE_ID, "earthquake_alert", String("active_sensors=") + String(activeCount));
+      publishEvent(SEISMIC_HUB_DEVICE_ID, "seismic", String("earthquake_alert_active_sensors=") + String(activeCount));
       publishSeismicHubTelemetry(activeCount, true);
       refreshLeds();
     }

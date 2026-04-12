@@ -1492,10 +1492,25 @@ module.exports = function routes({ db, mqttClient }) {
 
   r.post("/admin/houses", requireAdminAuth, wrap(async (req, res) => {
     const b = req.body || {};
+    const clientId = b.client_id ? Number(b.client_id) : null;
+    if (!clientId) {
+      return res.status(400).json({ success: false, message: 'يجب اختيار عميل مرتبط ببريد إلكتروني' });
+    }
+
+    const client = await queryOne(db, "SELECT id, email FROM clients WHERE id=?", [clientId]);
+    if (!client) {
+      return res.status(404).json({ success: false, message: 'العميل غير موجود' });
+    }
+
+    const clientEmail = String(client.email || '').trim();
+    if (!clientEmail) {
+      return res.status(400).json({ success: false, message: 'لا يمكن إنشاء المنزل بدون بريد إلكتروني للعميل' });
+    }
+
     const code = await generateUniqueHouseCode(db);
     const result = await exec(db,
       "INSERT INTO homes(home_code,name,client_id,wilaya,city,address,package_type,activated) VALUES(?,?,?,?,?,?,?,0) RETURNING id",
-      [code, b.name || code, b.client_id ? Number(b.client_id) : null,
+      [code, b.name || code, clientId,
        b.wilaya || '', b.city || '', b.address || '', b.package_type || 'basic']);
     const house = await queryOne(db, "SELECT * FROM homes WHERE id=?", [result.lastId]);
 
@@ -1576,9 +1591,21 @@ module.exports = function routes({ db, mqttClient }) {
   r.post("/admin/clients", requireAdminAuth, wrap(async (req, res) => {
     const b = req.body || {};
     if (!b.name) return res.status(400).json({ success: false, message: 'الاسم مطلوب' });
+
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'البريد الإلكتروني مطلوب' });
+    }
+
+    const emailSchema = z.string().email();
+    const parsedEmail = emailSchema.safeParse(email);
+    if (!parsedEmail.success) {
+      return res.status(400).json({ success: false, message: 'البريد الإلكتروني غير صالح' });
+    }
+
     const result = await exec(db,
       "INSERT INTO clients(name,phone,email,address) VALUES(?,?,?,?) RETURNING id",
-      [b.name, b.phone || '', b.email || '', b.address || '']);
+      [b.name, b.phone || '', email, b.address || '']);
     const client = await queryOne(db, "SELECT * FROM clients WHERE id=?", [result.lastId]);
     res.json({ success: true, client });
   }));
@@ -1804,11 +1831,24 @@ module.exports = function routes({ db, mqttClient }) {
     const clientName = (b.name || '').trim();
     const contactMethod = (b.contactMethod || '').trim();
     const contact = (b.contact || '').trim();
+    const emailRaw = (b.email || '').trim();
     if (!clientName || !contactMethod || !contact) {
       return res.status(400).json({ success: false, message: 'البيانات الأساسية ناقصة' });
     }
+
+    const emailCandidate = (contactMethod === 'email' ? contact : emailRaw).trim().toLowerCase();
+    if (!emailCandidate) {
+      return res.status(400).json({ success: false, message: 'البريد الإلكتروني مطلوب لإتمام الطلب' });
+    }
+
+    const emailSchema = z.string().email();
+    const parsedEmail = emailSchema.safeParse(emailCandidate);
+    if (!parsedEmail.success) {
+      return res.status(400).json({ success: false, message: 'البريد الإلكتروني غير صالح' });
+    }
+
     const phone = contactMethod !== 'email' ? contact : '';
-    const email = contactMethod === 'email' ? contact : '';
+    const email = emailCandidate;
 
     let client = phone
       ? await queryOne(db, "SELECT * FROM clients WHERE phone=? LIMIT 1", [phone])

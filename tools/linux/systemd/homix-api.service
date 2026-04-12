@@ -1,0 +1,15 @@
+[Unit]
+Description=Homix API Service
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/PFE/backend/server
+EnvironmentFile=/opt/PFE/tools/linux/homix.env
+ExecStart=/usr/bin/env node /opt/PFE/backend/server/index.js
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
