@@ -393,11 +393,11 @@ module.exports = function routes({ db, mqttClient }) {
   async function consumeReauth(userId, token) {
     const token_hash = sha256(token);
     const row = await queryOne(db,
-      "SELECT * FROM reauth_tokens WHERE user_id=? AND token_hash=? AND used_at IS NULL AND expires_at > datetime('now') LIMIT 1",
+      "SELECT * FROM reauth_tokens WHERE user_id=? AND token_hash=? AND used_at IS NULL AND expires_at > NOW() LIMIT 1",
       [userId, token_hash]
     );
     if (!row) return false;
-    await exec(db, "UPDATE reauth_tokens SET used_at=datetime('now') WHERE id=?", [row.id]);
+    await exec(db, "UPDATE reauth_tokens SET used_at=NOW() WHERE id=?", [row.id]);
     saveDb();
     return true;
   }
@@ -588,7 +588,7 @@ module.exports = function routes({ db, mqttClient }) {
     const nextState = applyCommandToState(parseJson(device.state, {}), b.cmd, b.value);
     await exec(
       db,
-      "INSERT INTO device_states(device_key, home_id, device_id, state, updated_at) VALUES(?,?,?,?,datetime('now')) ON CONFLICT (device_key) DO UPDATE SET state=excluded.state, updated_at=datetime('now')",
+      "INSERT INTO device_states(device_key, home_id, device_id, state, updated_at) VALUES(?,?,?,?,NOW()) ON CONFLICT (device_key) DO UPDATE SET state=excluded.state, updated_at=NOW()",
       [`${homeId}:${deviceId}`, homeId, deviceId, JSON.stringify(nextState)]
     );
 
@@ -640,7 +640,7 @@ module.exports = function routes({ db, mqttClient }) {
     const homeId = h.id;
 
     const codes = await queryAll(db,
-      "SELECT * FROM one_time_codes WHERE home_id=? AND used_at IS NULL AND expires_at > datetime('now') ORDER BY id DESC LIMIT 30",
+      "SELECT * FROM one_time_codes WHERE home_id=? AND used_at IS NULL AND expires_at > NOW() ORDER BY id DESC LIMIT 30",
       [homeId]
     );
 
@@ -655,7 +655,7 @@ module.exports = function routes({ db, mqttClient }) {
     if (!matched) return res.status(401).json({ ok: false, error: "invalid_code" });
 
     const upd = await exec(db,
-      "UPDATE one_time_codes SET used_at=datetime('now') WHERE id=? AND used_at IS NULL",
+      "UPDATE one_time_codes SET used_at=NOW() WHERE id=? AND used_at IS NULL",
       [matched.id]
     );
     if (upd.changes === 0) return res.status(409).json({ ok: false, error: "already_used" });

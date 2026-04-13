@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude sensitive data from backup -->
+    <exclude domain="file" path="shared_prefs/"/>
+    <exclude domain="database" path="db"/>
+    <exclude domain="sharedpref" path="flutter_secure_storage"/>
+</full-backup-content>

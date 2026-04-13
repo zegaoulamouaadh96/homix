@@ -16,12 +16,20 @@ const char* MQTT_USERNAME = "";
 const char* MQTT_PASSWORD = "";
 
 // Must match the home code created/paired in backend.
-const char* HOME_CODE = "DZ-ABCD-1234";
+const char* HOME_CODE = "DZ-BEBJ-Z6U7";
 
 // Logical device IDs used by backend/app.
 const char* DOOR_DEVICE_ID = "door_1";
 const char* CAMERA_DEVICE_ID = "camera_1";
 const char* SEISMIC_HUB_DEVICE_ID = "seismic_hub";
+
+// Camera stream URL published to the mobile app.
+// Use a reachable IP from the phone (same LAN or public IP/domain).
+// Set CAMERA_STREAM_HOST to "AUTO_LOCAL_IP" only if this same ESP32 serves the stream endpoint.
+const char* CAMERA_STREAM_HOST = "192.168.1.50";
+const uint16_t CAMERA_STREAM_PORT = 81;
+const char* CAMERA_STREAM_PATH = "/stream";
+const bool CAMERA_STREAM_USE_HTTPS = false;
 
 // Add authorized RFID UIDs in uppercase HEX with '-'.
 const char* AUTHORIZED_UIDS[] = {
@@ -103,6 +111,20 @@ String boolJson(bool value) {
   return value ? "true" : "false";
 }
 
+String buildCameraStreamUrl() {
+  String host = String(CAMERA_STREAM_HOST);
+  host.trim();
+  if (host.length() == 0 || host == "AUTO_LOCAL_IP") {
+    host = WiFi.localIP().toString();
+  }
+
+  String path = String(CAMERA_STREAM_PATH);
+  if (!path.startsWith("/")) path = "/" + path;
+
+  const char* scheme = CAMERA_STREAM_USE_HTTPS ? "https://" : "http://";
+  return String(scheme) + host + ":" + String(CAMERA_STREAM_PORT) + path;
+}
+
 String buildTopic(const char* deviceId, const char* kind) {
   return String("home/") + HOME_CODE + "/device/" + deviceId + "/" + kind;
 }
@@ -139,8 +161,9 @@ void publishDoorTelemetry(const String& source) {
 }
 
 void publishCameraTelemetry() {
+  String streamUrl = buildCameraStreamUrl();
   String payload =
-      String("{\"online\":true,\"type\":\"camera\",\"stream_url\":\"rtsp://esp32-cam.local/live\",\"ts\":") +
+      String("{\"online\":true,\"type\":\"camera\",\"stream_url\":\"") + streamUrl + "\",\"ts\":" +
       String(millis()) + "}";
   publishRaw(buildTopic(CAMERA_DEVICE_ID, "telemetry"), payload);
 }

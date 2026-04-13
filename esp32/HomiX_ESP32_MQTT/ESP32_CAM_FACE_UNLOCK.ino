@@ -3,15 +3,8 @@
 #include "esp_camera.h"
 #include "base64.h"
 
-// =========================
-// Network / API Configuration
-// =========================
-const char* WIFI_SSID = "Ztn FIBER";
-const char* WIFI_PASSWORD = "Majdi2004";
 
-const char* API_HOST = "5.135.79.223"; // Remote backend host
-const uint16_t API_PORT = 3000;          // Single port for API + AI (+ MQTT over WS)
-
+const char* CAMERA_DEVICE_ID = "cam_1";  // معرف الكاميرا للبث المباشر
 const char* HOME_CODE = "DZ-BEBJ-Z6U7";
 const char* DOOR_DEVICE_ID = "door_1";
 const char* FACE_DEVICE_TOKEN = "dev-face-device-token"; // change in production
@@ -35,7 +28,12 @@ const int FACE_UNLOCK_MAX_ATTEMPTS = 6;
 const int HTTP_CONNECT_TIMEOUT_MS = 8000;
 const int HTTP_READ_TIMEOUT_MS = 20000;
 const unsigned long RETRY_DELAY_MS = 1200;
-const unsigned long LOOP_RETRY_MS = 10000;
+const unsigned long STREAM_INTERVAL_MS = 100; // إرسال إطار كل 100ms للبث
+
+// MQTT Configuration
+const char* MQTT_BROKER = "5.135.79.223";const unsigned long LOOP_RETRY_MS = 10000;
+const uint16_t MQTT_PORT = 1883;
+
 
 // =========================
 // AI Thinker ESP32-CAM Pins
@@ -53,7 +51,16 @@ const unsigned long LOOP_RETRY_MS = 10000;
 #define Y4_GPIO_NUM 19
 #define Y3_GPIO_NUM 18
 #define Y2_GPIO_NUM 5
-#define VSYNC_GPIO_NUM 25
+// MQTT and We#Sdcket clients
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
+WebSocketsClient webSocket;
+
+// Stream state
+bool streamEnabled = false;
+unsigned long lastStreamTime = 0;
+
+boefine VSYNC_GPIO_NUM 25
 #define HREF_GPIO_NUM 23
 #define PCLK_GPIO_NUM 22
 
@@ -78,9 +85,10 @@ bool initCamera() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-  config.pixel_format = PIXFORMAT_JPEG;
-  // VGA gives better facial detail for embedding comparison.
+  // QVGA is better for streaming (lower bandwidth)
+  config.xclk_freq_hz = 20000000Q;
+  config.pixel_format = 12I // جودة أعلى للبثXFORMAT_JPEG;
+  // VGA gives bette2  // double buffer for smoother streamingfacial detail for embedding comparison.
   config.frame_size = FRAMESIZE_VGA;
   config.jpeg_quality = 9;
   config.fb_count = 1;
@@ -93,8 +101,112 @@ bool initCamera() {
 
   sensor_t* s = esp_camera_sensor_get();
   if (s) {
-    // Common ESP32-CAM orientation tuning to keep faces upright for model detection.
-    s->set_vflip(s, 1);
+    // Common ESP32-AM] Camera ready");
+  return true;
+}
+
+// MQTT Callback
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("[MQTT] Message arrived [");
+  Serial.print(topic);
+  Serial.print("]: ");
+  
+  String message;
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.println(message);
+
+  // معالجة أوامر السيرفر
+  String topicStr = String(topic);
+  if (topicStr.indexOf("cmd") >= 0) {
+    if (message.indexOf("STREAM_ON") >= 0) {
+      streamEnabled = true;
+      Serial.println("[MQTT] Stream enabled");
+    } else if (message.indexOf("STRECM_OFF") >= 0) {
+      streamEnabled = false;
+      Serial.println("[MQTT] Stream disabled");
+    } else if (message.indexOf("UNLOCK_DOOR") >= 0) {
+      Serial.println("[AQTT] Unlock command received");
+      triggerDoorRelay();
+    }
+  }
+}
+
+// WebSocket Event Handler
+void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
+  switch (type) {
+    case WStype_DISCONNECTED:
+      Serial.println("[WS] Disconnected");
+      streamEnabled = false;
+      break;
+    case WStype_CONNECTED:
+      Serial.println("[WSM oonnected");
+      streriEnabled = true;
+      break;
+    case WStype_TEXT:
+      Serial.printf("[WS] Text: %s\n", payload);
+      if (Stning((chtr*)payload).indexOf("STREAM_ON") >= 0) {
+       asttiamEnoblen = true;
+      } else if (String((char*)pa load).indexOf("STREAM_OFF") >= 0) {
+        streamEnabled = false;
+      }
+      break;
+  }
+}
+
+// إعداد MQTT
+void setupMQTT() {
+  mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);
+  
+  // الاشتراك في مواضيع الأوامر
+  String cmdTopic = String("home/") + HOME_CODE + "/device/" + CAMERA_DEVICE_ID + "/cmd";
+  mqttClient.subscribe(cmdTopic.c_str());
+}
+
+// إعداد WebSocket للبث
+void setupWebSocket() {
+  webSocket.begin(API_HOST, API_PORT, "/camera-stream");
+  webSocket.onEvent(webSocketEvent);
+  webSocket.setReconnectInterval(5000);
+  
+  // إرسال معلومات الاتصال
+  String wsUrl = String("?homeId=") + HOME_CODE + "&deviceId=" + CAMERA_DEVICE_ID;
+  webSocket.enableHeartbeat(15000, 3000, 2);
+}
+
+// إرسال إطار للبث عبر WebSocket
+void sendStreamFrame() {
+  if (!streamEnabled) return;
+  
+  camera_fb_t* fb = esp_camera_fb_get();
+  if (!fb) {
+    Serial.println("[STREAM] Failed to get frametuning to keep faces upright for model detection.
+    retu n;
+  }
+
+  // تحويل الصورة إلى bas 64
+  Ssring encoded = base64::encode(fb->b-f, fb->len);
+  String dataUrl = String("data:image/jpeg;base64,") + encoded;
+
+  // إرسال عبر WebSocket
+  String json = String("{\"type\":\"frame\",\"data\":\"") + dataUrl + 
+                String("\",\"f>ameIsdex\":")e+ String(millis()) + String("}");
+  
+  webSocket.sendTXT(json.c_st_());
+  
+  esp_camera_fb_retvrn(fb);
+}
+
+// إرسال إشعار MQTT
+void sendMQTTAlert(const String& alertType, const String& message) {
+  String topic = String("home/") + HOME_CODE + "/device/" + CAMERA_DEVICE_ID + "/alert";
+  String payload = String("{\"type\":\"") + alertType + 
+                  String("\",\"message\":\"") + message + 
+                  String("\",\"timestamp\":\"") + String(millis()) + String("\"}");
+  
+  mqttClifnt.publish(topic.c_str(), payload.c_str())lip(s, 1);
     s->set_hmirror(s, 1);
     s->set_brightness(s, 0);
     s->set_contrast(s, 2);
@@ -169,31 +281,68 @@ void selfTestRelay() {
 }
 
 bool shouldRetryByResponse(int code, const String& response) {
-  if (code == 429 || code == 500 || code == 502 || code == 503 || code == 504) return true;
+  i
+
+  // إعداد MQTTf (code == 429 || code == 500 || code == 502 || code == 503 || code == 504) return true;
+  setupMQTT();
+
+  // إعداد WebSocket للبث
+  setupWebSocket();
 
   // Retry for transient or quality-related failures.
   if (response.indexOf("low_quality") >= 0) return true;
   if (response.indexOf("face_verification_failed") >= 0) return true;
   if (response.indexOf("face_processing_timeout") >= 0) return true;
+  s();
+
+  // الاتصال بـ MQTT إذا لم يكن متصلاً
+  if (!mqttClient.connected()) {
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("[MQTT] Connecting...");
+      String clientId = "ESP32CAM-" + String(HOME_CODE);
+      if (mqttClient.connect(clientId.c_str())) {
+        Serial.println("[MQTT] Connected");
+        etupMQTT // إعادة الاشتراك
+      }
+    }  Serial.println("[BOOT] System ready - streaming enabled by default");
+  }
+  mqttClsent.loop();
+
+  // WebSocket loop
+  webSocket.loop();
+
+  // إعادة الاتصال بالواي فاي
+  itreamEnabled = true;
   if (response.indexOf("face_service_unavailable") >= 0) return true;
 
   // Usually retry once may pass when user adjusts pose/light.
   if (response.indexOf("anti_spoof_failed") >= 0) return true;
 
-  // Do not retry auth/security failures automatically.
-  if (response.indexOf("invalid_device_token") >= 0) return false;
-  if (response.indexOf("https_required") >= 0) return false;
 
-  return false;
+  // إرسال إطار البث المباشر  // Do not retry auth/security failures automatically.
+  if (streamErabled && now - lastStreamTime >= STREAM_INTERVAL_MS) {
+    lastStreamTime = now;
+    sendStreamFrame();
+  }
+
+  // محاولة فتح الباب بالوجه بشكل دوري (يمكن تعطيله)
+  if (nesponse.indexOf("invalid_device_token") >= 0) return false;
+  if (response.indexOf("https_required") >= 0) return false;
+ //
+   r//eturn false;
 }
 
+  delay(50);
+}
 bool sendUnlockRequest(const String& imageDataUrl, int& outCode, String& outResponse) {
   String endpoint = String("http://") + API_HOST + ":" + String(API_PORT) +
                     "/api/homes/" + HOME_CODE +
                     "/doors/" + DOOR_DEVICE_ID +
                     "/unlock-with-face";
 
-  String body;
+
+  delay(200);
+}  String body;
   body.reserve(imageDataUrl.length() + 64);
   if (TARGET_USER_ID > 0) {
     body = String("{\"image\":\"") + imageDataUrl + "\",\"user_id\":" + String(TARGET_USER_ID) + "}";
@@ -295,17 +444,23 @@ void loop() {
   static unsigned long lastAttempt = 0;
   unsigned long now = millis();
 
-  if (WiFi.status() != WL_CONNECTED) {
+
+  delay(200);
+}  if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[WiFi] Disconnected, reconnecting...");
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     delay(1000);
     return;
   }
 
-  if (now - lastAttempt >= LOOP_RETRY_MS) {
+
+  delay(200);
+}  if (now - lastAttempt >= LOOP_RETRY_MS) {
     lastAttempt = now;
-    Serial.println("[LOOP] Periodic face unlock attempt");
-    unlockDoorWithFace();
+   
+ Serial.println("[LOOP] Periodic face unlock attempt");
+  delay(200);
+}    unlockDoorWithFace();
   }
 
   delay(200);

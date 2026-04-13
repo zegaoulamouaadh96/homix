@@ -5,6 +5,7 @@ version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.24.0'
 
 dependencies:
   flutter:
@@ -52,6 +53,15 @@ dependencies:
   intl: ^0.19.0
   flutter_screenutil: ^5.9.0
   cached_network_image: ^3.3.1
+  
+  # WebSocket for camera streaming
+  web_socket_channel: ^2.4.0
+  
+  # MQTT for real-time sensor notifications
+  mqtt_client: ^10.0.0
+  
+  # Notifications
+  flutter_local_notifications: ^17.2.4
 
 dev_dependencies:
   flutter_test:

@@ -8,6 +8,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:smart_home_security/core/services/api_service.dart';
 import 'package:smart_home_security/core/theme/app_colors.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 /// شاشة الكاميرات الديناميكية المرتبطة بالسيرفر
 class CamerasScreen extends StatefulWidget {
@@ -369,6 +370,71 @@ class _CamerasScreenState extends State<CamerasScreen> {
     );
   }
 
+  Future<void> _showStreamPreview(String rawUrl) async {
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return;
+
+    final normalized =
+        trimmed.startsWith('http://') || trimmed.startsWith('https://')
+            ? trimmed
+            : 'http://$trimmed';
+
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || (!uri.hasScheme || !uri.hasAuthority)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('رابط البث غير صالح'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..loadRequest(uri);
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: AppColors.charcoal,
+        insetPadding: EdgeInsets.all(14.w),
+        child: SizedBox(
+          width: 360.w,
+          height: 540.h,
+          child: Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'بث مباشر',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, color: AppColors.silver),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: WebViewWidget(controller: controller)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -537,7 +603,9 @@ class _CamerasScreenState extends State<CamerasScreen> {
       (camera['metadata'] as Map?)?.cast<String, dynamic>() ?? {},
     );
     final online = state['online'] == true;
-    final stream = metadata['stream_url']?.toString();
+    final stream =
+        (metadata['stream_url'] ?? state['stream_url'] ?? state['streamUrl'])
+            ?.toString();
 
     return Container(
       width: double.infinity,
@@ -593,6 +661,12 @@ class _CamerasScreenState extends State<CamerasScreen> {
             Text(
               'stream_url: $stream',
               style: TextStyle(fontSize: 12.sp, color: AppColors.neonBlue),
+            ),
+            SizedBox(height: 10.h),
+            OutlinedButton.icon(
+              onPressed: () => _showStreamPreview(stream),
+              icon: const Icon(Icons.play_circle_outline),
+              label: const Text('فتح البث المباشر'),
             ),
           ],
         ],

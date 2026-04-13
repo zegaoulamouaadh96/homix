@@ -4,6 +4,7 @@ const path = require("path");
 const http = require("http");
 const { openDb, initDb, saveDb, queryOne, exec } = require("./db");
 const { startMqttBroker, startMqttWsBroker, connectMqttClient } = require("./mqtt");
+const { startCameraStreamServer } = require("./camera-stream");
 const buildRoutes = require("./routes");
 const { ZodError } = require("zod");
 
@@ -100,7 +101,10 @@ async function main() {
   app.get("/health", (req, res) => res.json({ ok: true }));
 
   app.use("/api", buildRoutes({ db, mqttClient }));
+تمرير db و mqttClient للـ camera stream عبر global أو closure
+  global.cameraStreamContext = { db, mqttClient };
 
+  // 
   // Global error handler
   app.use((err, req, res, _next) => {
     if (err instanceof ZodError) {
@@ -113,6 +117,14 @@ async function main() {
     console.error("Unhandled error:", err);
     res.status(500).json({ ok: false, error: "internal_error" });
   });
+
+  // بدء خادم WebSocket لبث الكاميرا
+  try {
+    startCameraStreamServer(listener.server, "/camera-stream");
+    console.log(`Camera Stream WebSocket on ws://0.0.0.0:${listener.port}/camera-stream`);
+  } catch (err) {
+    console.error("Failed to start camera stream server:", err.message);
+  }
 
   const port = Number(process.env.PORT || 3000);
   const listener = await listenWithFallback(() => http.createServer(app), port, "0.0.0.0", 10);
@@ -156,7 +168,7 @@ async function main() {
           if (!h) return;
           await ensureDeviceExists(h.id, deviceId, payload);
           await exec(db,
-            "INSERT INTO device_states(device_key, home_id, device_id, state, updated_at) VALUES(?,?,?,?,datetime('now')) ON CONFLICT (device_key) DO UPDATE SET state=excluded.state, updated_at=datetime('now')",
+            "INSERT INTO device_states(device_key, home_id, device_id, state, updated_at) VALUES(?,?,?,?,NOW()) ON CONFLICT (device_key) DO UPDATE SET state=excluded.state, updated_at=NOW()",
             [`${h.id}:${deviceId}`, h.id, deviceId, JSON.stringify(payload)]
           );
           saveDb();
@@ -170,6 +182,17 @@ async function main() {
           if (!h) return;
           await ensureDeviceExists(h.id, deviceId, payload);
           const type = payload.type || "unknown";
+          
+          // إرسال إشعار MQTT للأحداث الهامة
+          if (type === 'motion' || type === 'triggered' || type === 'smoke' || 
+              type === 'flood' || type === 'glass' || type === 'seismic') {
+            mqttClient.publish(
+              `home/${homeCode}/device/${deviceId}/alert`,
+              JSON.stringify({ type, payload, timestamp: new Date().toISOString() }),
+              { qos: 1 }
+            );
+          }
+          
           await exec(db, "INSERT INTO events(home_id, device_id, type, payload) VALUES(?,?,?,?)",
             [h.id, deviceId, type, JSON.stringify(payload)]
           );
