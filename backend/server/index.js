@@ -101,7 +101,7 @@ async function main() {
   app.get("/health", (req, res) => res.json({ ok: true }));
 
   app.use("/api", buildRoutes({ db, mqttClient }));
-تمرير db و mqttClient للـ camera stream عبر global أو closure
+  // Pass db and mqttClient to camera stream module via global context.
   global.cameraStreamContext = { db, mqttClient };
 
   // 
@@ -118,17 +118,17 @@ async function main() {
     res.status(500).json({ ok: false, error: "internal_error" });
   });
 
-  // بدء خادم WebSocket لبث الكاميرا
+  const port = Number(process.env.PORT || 3000);
+  const listener = await listenWithFallback(() => http.createServer(app), port, "0.0.0.0", 10);
+  console.log(`API on http://0.0.0.0:${listener.port}`);
+
+  // Start camera stream WebSocket server on the same HTTP server.
   try {
     startCameraStreamServer(listener.server, "/camera-stream");
     console.log(`Camera Stream WebSocket on ws://0.0.0.0:${listener.port}/camera-stream`);
   } catch (err) {
     console.error("Failed to start camera stream server:", err.message);
   }
-
-  const port = Number(process.env.PORT || 3000);
-  const listener = await listenWithFallback(() => http.createServer(app), port, "0.0.0.0", 10);
-  console.log(`API on http://0.0.0.0:${listener.port}`);
 
   try {
     const enableWsMqtt = process.env.MQTT_ENABLE_WS === "true";
