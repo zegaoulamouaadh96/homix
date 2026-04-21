@@ -94,7 +94,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Face Recognition AI Service
+  # Face Recognition AI Service (CPU mode - no GPU required)
   ai:
     build:
       context: ../../backend/ai
@@ -108,13 +108,6 @@ services:
       - ai_cache:/opt/homix-cache
     networks:
       - homix-network
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   # Nginx Reverse Proxy (for production with SSL)
   nginx:
