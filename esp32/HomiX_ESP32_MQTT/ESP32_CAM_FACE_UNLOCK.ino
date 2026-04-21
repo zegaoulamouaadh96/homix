@@ -178,7 +178,7 @@ void setupMQTT() {
 // إعداد WebSocket للبث
 void setupWebSocket() {
   String wsProtocol = USE_HTTPS ? "wss://" : "ws://";
-  String wsUrl = wsProtocol + API_HOST + "/camera-stream";
+  String unlockUrl = "http://" + String(SERVER_HOST) + ":" + String(SERVER_PORT) + "/api/face-recognition/unlock";
   webSocket.begin(API_HOST, API_PORT, "/camera-stream");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
