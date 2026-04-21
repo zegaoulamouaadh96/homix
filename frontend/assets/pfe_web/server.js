@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8000;
-const PRIMARY_BACKEND = process.env.BACKEND_URL || 'https://homix.systems';
-const BACKENDS = [PRIMARY_BACKEND, 'http://127.0.0.1:3000'];
+const PRIMARY_BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:3000';
+const BACKENDS = [PRIMARY_BACKEND, 'http://5.135.79.223:3000', 'https://homix.systems'];
 const STATIC_ROOT = __dirname;
 
 // ===== MIME Types =====
