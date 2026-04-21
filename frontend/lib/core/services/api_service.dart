@@ -80,6 +80,26 @@ class ApiService {
     return token != null && token.isNotEmpty;
   }
 
+  /// يتحقق من صلاحية الجلسة الحالية عبر نداء محمي.
+  /// في حال انتهاء/فساد التوكن يتم تسجيل الخروج محليًا.
+  Future<bool> hasValidSession() async {
+    final loggedIn = await isLoggedIn();
+    if (!loggedIn) return false;
+
+    final profile = await getProfile();
+    if (profile.ok) return true;
+
+    if (profile.errorCode == 'invalid_token' ||
+        profile.errorCode == 'missing_token' ||
+        profile.errorCode == 'not_authenticated') {
+      await logout();
+      return false;
+    }
+
+    // لا نحذف الجلسة في أخطاء الشبكة المؤقتة.
+    return true;
+  }
+
   Future<void> logout() async {
     await _storage.deleteAll();
   }

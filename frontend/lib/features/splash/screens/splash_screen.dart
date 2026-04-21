@@ -154,7 +154,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (mounted) {
       final api = ApiService();
-      final isLoggedIn = await api.isLoggedIn();
+      final isLoggedIn = await api.hasValidSession();
       final homeId = await api.getHomeId();
       if (isLoggedIn && homeId != null) {
         if (mounted) context.go(AppRoutes.main);
