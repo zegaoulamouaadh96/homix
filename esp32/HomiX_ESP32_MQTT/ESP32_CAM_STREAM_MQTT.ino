@@ -9,7 +9,8 @@
 const char* WIFI_SSID = "Ztn FIBER";
 const char* WIFI_PASSWORD = "Majdi2004";
 
-const char* MQTT_HOST = "5.135.79.223";
+// Domain: homix.systems
+const char* MQTT_HOST = "homix.systems";
 const uint16_t MQTT_PORT = 1883;
 const char* MQTT_USERNAME = "";
 const char* MQTT_PASSWORD = "";

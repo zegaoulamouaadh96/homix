@@ -30,8 +30,18 @@ const int HTTP_READ_TIMEOUT_MS = 20000;
 const unsigned long RETRY_DELAY_MS = 1200;
 const unsigned long STREAM_INTERVAL_MS = 100; // إرسال إطار كل 100ms للبث
 
+// Domain: homix.systems
+const char* SERVER_HOST = "homix.systems";
+const int SERVER_PORT = 443; // HTTPS
+const bool USE_HTTPS = true;
+
+// API Configuration (for backward compatibility)
+const char* API_HOST = "homix.systems";
+const int API_PORT = 443; // HTTPS
+
 // MQTT Configuration
-const char* MQTT_BROKER = "5.135.79.223";const unsigned long LOOP_RETRY_MS = 10000;
+const char* MQTT_BROKER = "homix.systems";
+const unsigned long LOOP_RETRY_MS = 10000;
 const uint16_t MQTT_PORT = 1883;
 
 
@@ -167,6 +177,8 @@ void setupMQTT() {
 
 // إعداد WebSocket للبث
 void setupWebSocket() {
+  String wsProtocol = USE_HTTPS ? "wss://" : "ws://";
+  String wsUrl = wsProtocol + API_HOST + "/camera-stream";
   webSocket.begin(API_HOST, API_PORT, "/camera-stream");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
@@ -333,7 +345,7 @@ bool shouldRetryByResponse(int code, const String& response) {
 }
 
   delay(50);
-}
+}USE_HTTPS ? s:http//)HS
 bool sendUnlockRequest(const String& imageDataUrl, int& outCode, String& outResponse) {
   String endpoint = String("http://") + API_HOST + ":" + String(API_PORT) +
                     "/api/homes/" + HOME_CODE +

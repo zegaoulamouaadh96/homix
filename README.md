@@ -4,6 +4,10 @@
 
 تطبيق Flutter متكامل لإدارة أمان المنزل الذكي مع واجهة مستخدم مظلمة أنيقة وتأثيرات حركية متطورة.
 
+**🌐 Domain**: https://homix.systems  
+**🔒 SSL**: Enabled with Let's Encrypt  
+**📡 MQTT**: Secure MQTT over SSL (MQTTS)
+
 ## ✨ المميزات الرئيسية
 
 - 🔐 **نظام مصادقة متعدد**: كود المنزل + بصمة + التعرف على الوجه
@@ -14,6 +18,8 @@
 - 🔔 **إشعارات فورية**: Firebase Push Notifications
 - 👥 **إدارة الأعضاء**: أدوار متعددة (Owner, Admin, Resident, Guest)
 - 🎨 **تصميم أسود كامل**: Material 3 مع تأثيرات Neon
+- 🔒 **HTTPS آمن**: SSL Certificate من Let's Encrypt
+- 📡 **MQTT over SSL**: اتصال آمن للأجهزة
 
 ## 🛠️ التقنيات المستخدمة
 
@@ -28,13 +34,68 @@
 - **video_player** - تشغيل الفيديو
 - **flutter_vlc_player** - بث RTSP
 
-### Backend (Python)
-- **FastAPI** - إطار API السريع
-- **MongoDB + Beanie ODM** - قاعدة البيانات
-- **Firebase Admin SDK** - إدارة المصادقة
-- **Pydantic** - التحقق من البيانات
-- **Motor** - MongoDB async driver
-- **Python-Jose** - JWT tokens
+### Backend (Node.js)
+- **Express.js** - إطار API
+- **PostgreSQL** - قاعدة البيانات
+- **MQTT Broker** - مراسلة الأجهزة
+- **Mosquitto** - MQTT broker
+- **JWT** - المصادقة
+- **Bcrypt** - تشفير كلمات المرور
+
+### ESP32
+- **ESP32-CAM** - كاميرا ذكية
+- **ESP32** - متحكم للأجهزة
+- **MQTT Client** - اتصال MQTT
+- **WebSocket** - بث الفيديو
+
+## 🚀 النشر على VPS
+
+للاطلاع على دليل النشر الكامل على VPS، راجع [DEPLOYMENT.md](DEPLOYMENT.md)
+
+### المتطلبات
+
+- VPS مع Ubuntu 20.04+ (2GB RAM على الأقل)
+- Domain name: `homix.systems`
+- Docker و Docker Compose
+
+### خطوات سريعة
+
+1. **رفع المشروع على GitHub**
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/YOUR_USERNAME/homix.git
+   git push -u origin main
+   ```
+
+2. **نشر على VPS**
+   ```bash
+   # SSH للـ VPS
+   ssh root@5.135.79.223
+   
+   # سحب المشروع
+   git clone https://github.com/YOUR_USERNAME/homix.git /opt/homix
+   cd /opt/homix
+   
+   # إعداد SSL
+   ./deploy/scripts/setup-ssl.sh
+   
+   # تشغيل الخدمات
+   cd deploy/docker
+   docker-compose -f docker-compose.prod.yml up -d
+   
+   # اختبار الاتصالات
+   ../scripts/test-connections.sh
+   ```
+
+### المنافذ المفتوحة
+
+- 80/tcp - HTTP (Redirect to HTTPS)
+- 443/tcp - HTTPS
+- 1883/tcp - MQTT TCP
+- 8883/tcp - MQTT over SSL (MQTTS)
+- 9001/tcp - MQTT over WebSocket Secure
 
 ## 📁 هيكل المشروع
 

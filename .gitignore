@@ -1,12 +1,101 @@
+# Dependencies
 node_modules/
+
+# Environment files
 .env
+.env.local
+.env.*.local
+*.env
+
+# Database files
 *.db
 *.sqlite
-.vscode/
+*.db-shm
+*.db-wal
 
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Frontend (Flutter)
 frontend/.dart_tool/
-frontend/build/
 frontend/.flutter-plugins
 frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/pubspec.lock
+frontend/build/
+frontend/.idea/
+frontend/.vscode/
+frontend/*.iml
+frontend/.metadata
+frontend/android/.gradle/
+frontend/android/captures/
+frontend/android/gradlew
+frontend/android/gradlew.bat
+frontend/android/local.properties
+frontend/android/**/GeneratedPluginRegistrant.java
+frontend/android/app/release/
+frontend/android/app/debug/
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/App.framework
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/ephemeral/
+frontend/ios/Runner/GeneratedPluginRegistrant.*
 
+# Backend (Node.js)
 backend/server/node_modules/
+backend/server/.env
+backend/server/data/
+backend/server/*.log
+backend/server/.cache/
+
+# Backend (Python AI)
+backend/ai/__pycache__/
+backend/ai/.insightface/
+backend/ai/*.egg-info/
+backend/ai/.pytest_cache/
+backend/ai/.mypy_cache/
+backend/ai/.ruff_cache/
+backend/ai/venv/
+backend/ai/env/
+backend/ai/homix-cache/
+
+# Database Volumes
+backend/postgres_data/
+backend/mosquitto_data/
+backend/mosquitto_log/
+backend/redis_data/
+
+# ESP32
+esp32/.pio/
+esp32/.vscode/
+esp32/*.log
+esp32/build/
+
+# Deployment
+deploy/.env
+deploy/docker/volumes/
+deploy/nginx/logs/
+
+# Build artifacts
+dist/
+build/
+*.apk
+*.aab

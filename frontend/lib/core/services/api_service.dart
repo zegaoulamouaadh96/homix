@@ -7,14 +7,13 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  // غيّر هذا العنوان حسب بيئتك:
+  // Domain name: homix.systems
   // للمحاكي Android: 10.0.2.2
   // للجهاز الحقيقي على نفس الشبكة: IP الكمبيوتر
   // للويب: localhost
-  // عند استخدام جهاز فعلي مع ADB reverse استخدم localhost (adb reverse tcp:3000 tcp:3000)
   static const String _baseUrl = String.fromEnvironment(
     'HOMIX_API_BASE_URL',
-    defaultValue: 'http://5.135.79.223:3000/api',
+    defaultValue: 'https://homix.systems/api',
   );
 
   static const String _faceDeviceToken = String.fromEnvironment(
